@@ -1,320 +1,457 @@
+// // // authService.js
+
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+// import { AUTH_URL } from '../screens/config/apiconfig'; //
+
+// class AuthService {
+
+//   // ─── Helper: parse response safely ────────────────────────────────────────
+//   async _parseResponse(response) {
+//     const text = await response.text();
+
+//     // If server returns HTML (wrong URL / server error), give a clear message
+//     if (text.trim().startsWith('<')) {
+//       const status = response.status;
+//       if (status === 404) throw new Error('API endpoint not found. Check your server URL.');
+//       if (status === 500) throw new Error('Server error. Check your backend logs.');
+//       throw new Error(`Server returned HTML instead of JSON (status ${status}). Check BASE_URL.`);
+//     }
+
+//     try {
+//       return JSON.parse(text);
+//     } catch {
+//       throw new Error(`Invalid JSON response: ${text.slice(0, 100)}`);
+//     }
+//   }
+
+//   // ─── Login ────────────────────────────────────────────────────────────────
+//   async login(email, password) {
+//     try {
+//       const response = await fetch(`${AUTH_URL}/login`, {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify({ email, password }),
+//       });
+
+//       const data = await this._parseResponse(response);
+
+//       if (!response.ok || !data.success) {
+//         throw new Error(data.message || 'Login failed');
+//       }
+
+//       // Persist token + user to AsyncStorage
+//       await AsyncStorage.setItem('token', data.token);
+//       await AsyncStorage.setItem('user', JSON.stringify(data.user));
+//       if (data.refreshToken) {
+//         await AsyncStorage.setItem('refreshToken', data.refreshToken);
+//       }
+
+//       return data; // { success, token, refreshToken, user: { id, name, email, role } }
+
+//     } catch (error) {
+//       if (error.message === 'Network request failed') {
+//         throw new Error(
+//           'Cannot reach server. Check:\n' +
+//           '• Backend running? (npm start)\n' +
+//           '• Android emulator → use 10.0.2.2 not localhost\n' +
+//           '• Physical device → use your Mac IP (ipconfig getifaddr en0)'
+//         );
+//       }
+//       throw error;
+//     }
+//   }
+
+//   // ─── Signup ───────────────────────────────────────────────────────────────
+//   async signup(name, email, password, phone, role = 'user', fcmToken = null, driverFields = {}) {
+//     try {
+//       const body = {
+//         name,
+//         email,
+//         password,
+//         phone,
+//         role,
+//         fcmToken,
+//         ...(role === 'driver' && {
+//           vehicleType:   driverFields.vehicleType   || null,
+//           vehicleNumber: driverFields.vehicleNumber || null,
+//           licenseNumber: driverFields.licenseNumber || null,
+//         }),
+//       };
+
+//       const response = await fetch(`${AUTH_URL}/register`, {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify(body),
+//       });
+
+//       const data = await this._parseResponse(response);
+
+//       if (!response.ok || !data.success) {
+//         throw new Error(data.message || 'Registration failed');
+//       }
+
+//       await AsyncStorage.setItem('token', data.token);
+//       await AsyncStorage.setItem('user', JSON.stringify(data.user));
+//       if (data.refreshToken) {
+//         await AsyncStorage.setItem('refreshToken', data.refreshToken);
+//       }
+
+//       return data;
+
+//     } catch (error) {
+//       if (error.message === 'Network request failed') {
+//         throw new Error(
+//           'Cannot reach server. Check:\n' +
+//           '• Backend running? (npm start)\n' +
+//           '• Android emulator → use 10.0.2.2 not localhost\n' +
+//           '• Physical device → use your Mac IP (ipconfig getifaddr en0)'
+//         );
+//       }
+//       throw error;
+//     }
+//   }
+
+//   // ─── Logout ───────────────────────────────────────────────────────────────
+//   async logout() {
+//     await AsyncStorage.multiRemove(['token', 'refreshToken', 'user']);
+//   }
+
+//   // ─── Get stored token ─────────────────────────────────────────────────────
+//   async getToken() {
+//     return AsyncStorage.getItem('token');
+//   }
+
+//   // ─── Get stored user ──────────────────────────────────────────────────────
+//   async getStoredUser() {
+//     const user = await AsyncStorage.getItem('user');
+//     return user ? JSON.parse(user) : null;
+//   }
+
+//   // ─── Get current user from API ────────────────────────────────────────────
+//   async getCurrentUser(token) {
+//     try {
+//       const response = await fetch(`${AUTH_URL}/me`, {
+//         method: 'GET',
+//         headers: {
+//           'Content-Type': 'application/json',
+//           Authorization: `Bearer ${token}`,
+//         },
+//       });
+//       return this._parseResponse(response);
+//     } catch (error) {
+//       throw new Error('Failed to fetch user profile: ' + error.message);
+//     }
+//   }
+// }
+
+// export const authService = new AuthService();
 // authService.js
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AUTH_URL } from '../screens/config/apiconfig';
 
-// Base URL - verify this is correct
-const BASE_URL = 'https://grocery-backend-shivam.vercel.app/api/v1/auth';
+class AuthService {
 
-export const authService = {
-  // Login
-  login: async (email, password) => {
+  // ─── Helper: parse response safely ────────────────────────────────────────
+  async _parseResponse(response) {
+    const text = await response.text();
+
+    // If server returns HTML (wrong URL / server error), give a clear message
+    if (text.trim().startsWith('<')) {
+      const status = response.status;
+      if (status === 404) throw new Error('API endpoint not found. Check your server URL.');
+      if (status === 500) throw new Error('Server error. Check your backend logs.');
+      throw new Error(`Server returned HTML instead of JSON (status ${status}). Check BASE_URL.`);
+    }
+
     try {
-      console.log('Attempting login with:', email);
-      console.log('Full URL:', `${BASE_URL}/login`);
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`Invalid JSON response: ${text.slice(0, 100)}`);
+    }
+  }
 
-      const response = await fetch(`${BASE_URL}/login`, {
+  // ─── Helper: network error message ────────────────────────────────────────
+  _networkErrorMessage() {
+    return (
+      'Cannot reach server. Check:\n' +
+      '• Backend running? (npm start)\n' +
+      '• Android emulator → use 10.0.2.2 not localhost\n' +
+      '• Physical device → use your machine IP (ipconfig getifaddr en0)'
+    );
+  }
+
+  // ─── Login ────────────────────────────────────────────────────────────────
+  async login(email, password) {
+    try {
+      const response = await fetch(`${AUTH_URL}/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
+      const data = await this._parseResponse(response);
 
-      // Get the raw response text first
-      const responseText = await response.text();
-      console.log('Raw response:', responseText.substring(0, 200)); // Log first 200 chars
-
-      // Try to parse as JSON
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('JSON parse error. Response was:', responseText);
-        throw new Error(`Server returned invalid JSON. Status: ${response.status}`);
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Login failed');
       }
 
-      console.log('Login response:', data);
-
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      // Persist token + user to AsyncStorage
+      await AsyncStorage.setItem('token', data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      if (data.refreshToken) {
+        await AsyncStorage.setItem('refreshToken', data.refreshToken);
       }
 
-      if (data.success && data.token) {
-        // Store authentication data
-        await AsyncStorage.setItem('token', data.token);
-        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      return data; // { success, token, refreshToken, user: { id, name, email, role, ... } }
 
-        console.log('Login successful, token stored');
-        return data;
-      }
-
-      throw new Error(data.message || 'Login failed');
     } catch (error) {
-      console.error('Login service error:', error);
+      if (error.message === 'Network request failed') {
+        throw new Error(this._networkErrorMessage());
+      }
       throw error;
     }
-  },
+  }
 
-  // Signup/Register
-  signup: async (name, email, password, phone, role = 'user', fcmToken = null) => {
+  // ─── Signup ───────────────────────────────────────────────────────────────
+  // FIX 1: vehicleType now falls back to 'bike' instead of null.
+  //         The UserSchema enum ['bike','scooter','car','van'] rejects null,
+  //         which was causing a Mongoose validation error and silently
+  //         preventing driver accounts from being saved.
+  //
+  // FIX 2: driverFields are only spread when role === 'driver', which is
+  //         correct — but we now guard vehicleType with a valid fallback so
+  //         the backend never receives an invalid enum value.
+  async signup(name, email, password, phone, role = 'user', fcmToken = null, driverFields = {}) {
     try {
-      console.log('Attempting signup with:', { name, email, phone, role, fcmToken });
-      console.log('Full URL:', `${BASE_URL}/register`);
+      const allowedVehicleTypes = ['bike', 'scooter', 'car', 'van'];
 
-      const response = await fetch(`${BASE_URL}/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          password,
-          phone,
-          role,
-          fcmToken,
+      const body = {
+        name,
+        email,
+        password,
+        phone,
+        role,
+        fcmToken,
+        ...(role === 'driver' && {
+          // Use provided vehicleType if valid, otherwise default to 'bike'
+          vehicleType: allowedVehicleTypes.includes(driverFields.vehicleType)
+            ? driverFields.vehicleType
+            : 'bike',
+          vehicleNumber: driverFields.vehicleNumber || null,
+          licenseNumber: driverFields.licenseNumber || null,
         }),
+      };
+
+      const response = await fetch(`${AUTH_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response content-type:', response.headers.get('content-type'));
+      const data = await this._parseResponse(response);
 
-      // Get the raw response text first
-      const responseText = await response.text();
-      console.log('Raw response (first 500 chars):', responseText.substring(0, 500));
-
-      // Try to parse as JSON
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('JSON parse error. Full response:', responseText);
-        throw new Error(`Server returned HTML/invalid response. Status: ${response.status}. Check if URL is correct.`);
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Registration failed');
       }
 
-      console.log('Signup response:', data);
-
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      await AsyncStorage.setItem('token', data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      if (data.refreshToken) {
+        await AsyncStorage.setItem('refreshToken', data.refreshToken);
       }
 
-      if (data.success && data.token) {
-        // Store authentication data
-        await AsyncStorage.setItem('token', data.token);
-        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      return data;
 
-        console.log('Signup successful, token stored');
-        return data;
-      }
-
-      throw new Error(data.message || 'Signup failed');
     } catch (error) {
-      console.error('Signup service error:', error);
+      if (error.message === 'Network request failed') {
+        throw new Error(this._networkErrorMessage());
+      }
       throw error;
     }
-  },
+  }
 
-  // Update FCM Token
-  updateFCMToken: async (token, fcmToken) => {
+  // ─── Logout ───────────────────────────────────────────────────────────────
+  // Calls the server endpoint to clear the cookie, then wipes local storage.
+  // The server call is best-effort — local storage is always cleared even if
+  // the request fails (e.g. no network).
+  async logout() {
     try {
-      console.log('Updating FCM token...');
+      const token = await AsyncStorage.getItem('token');
+      if (token) {
+        await fetch(`${AUTH_URL}/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        }).catch(() => {
+          // Ignore — local logout proceeds regardless
+        });
+      }
+    } finally {
+      await AsyncStorage.multiRemove(['token', 'refreshToken', 'user']);
+    }
+  }
 
-      const response = await fetch(`${BASE_URL}/update-fcm-token`, {
-        method: 'POST',
+  // ─── Get stored token ─────────────────────────────────────────────────────
+  async getToken() {
+    return AsyncStorage.getItem('token');
+  }
+
+  // ─── Get stored user ──────────────────────────────────────────────────────
+  async getStoredUser() {
+    const user = await AsyncStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  }
+
+  // ─── Get current user from API ────────────────────────────────────────────
+  async getCurrentUser(token) {
+    try {
+      const response = await fetch(`${AUTH_URL}/me`, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return this._parseResponse(response);
+    } catch (error) {
+      throw new Error('Failed to fetch user profile: ' + error.message);
+    }
+  }
+
+  // ─── Update profile ───────────────────────────────────────────────────────
+  // Accepts any profile fields. For drivers, pass vehicleType / vehicleNumber
+  // / licenseNumber inside profileData and the backend will handle them.
+  async updateProfile(token, profileData) {
+    try {
+      const response = await fetch(`${AUTH_URL}/update-profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      const data = await this._parseResponse(response);
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Profile update failed');
+      }
+
+      // Keep AsyncStorage in sync
+      const updatedUser = data.data || data.user;
+      if (updatedUser) {
+        await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+
+      return data;
+    } catch (error) {
+      throw new Error('Failed to update profile: ' + error.message);
+    }
+  }
+
+  // ─── Update FCM token ─────────────────────────────────────────────────────
+  async updateFCMToken(token, fcmToken) {
+    try {
+      const response = await fetch(`${AUTH_URL}/update-fcm-token`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ fcmToken }),
       });
 
-      const responseText = await response.text();
-      const data = JSON.parse(responseText);
+      const data = await this._parseResponse(response);
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update FCM token');
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'FCM token update failed');
       }
 
-      console.log('FCM token updated successfully');
       return data;
     } catch (error) {
-      console.error('Error updating FCM token:', error);
-      throw error;
+      throw new Error('Failed to update FCM token: ' + error.message);
     }
-  },
+  }
 
-  // Forgot Password
-  forgotPassword: async (email) => {
+  // ─── Refresh token ────────────────────────────────────────────────────────
+  async refreshToken() {
     try {
-      const response = await fetch(`${BASE_URL}/forgot-password`, {
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      if (!refreshToken) throw new Error('No refresh token found');
+
+      const response = await fetch(`${AUTH_URL}/refresh-token`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
       });
 
-      const responseText = await response.text();
-      const data = JSON.parse(responseText);
+      const data = await this._parseResponse(response);
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to send reset link');
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Token refresh failed');
+      }
+
+      await AsyncStorage.setItem('token', data.token);
+      if (data.refreshToken) {
+        await AsyncStorage.setItem('refreshToken', data.refreshToken);
       }
 
       return data;
     } catch (error) {
-      throw error;
+      throw new Error('Failed to refresh token: ' + error.message);
     }
-  },
+  }
 
-  // Reset Password
-  resetPassword: async (token, newPassword) => {
+  // ─── Driver: toggle availability ──────────────────────────────────────────
+  async toggleDriverAvailability(token) {
     try {
-      const response = await fetch(`${BASE_URL}/reset-password/${token}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ password: newPassword }),
-      });
-
-      const responseText = await response.text();
-      const data = JSON.parse(responseText);
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Password reset failed');
-      }
-
-      return data;
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  // Get Current User
-  getCurrentUser: async (token) => {
-    try {
-      const response = await fetch(`${BASE_URL}/me`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const responseText = await response.text();
-      const data = JSON.parse(responseText);
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to get user');
-      }
-
-      return data;
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  // Update Profile
-  updateProfile: async (token, name, email) => {
-    try {
-      const response = await fetch(`${BASE_URL}/update-profile`, {
+      const response = await fetch(`${AUTH_URL}/driver/availability`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name, email }),
       });
 
-      const responseText = await response.text();
-      const data = JSON.parse(responseText);
+      const data = await this._parseResponse(response);
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update profile');
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to toggle availability');
       }
 
-      // Update stored user data
-      await AsyncStorage.setItem('user', JSON.stringify(data.data));
-
-      return data;
+      return data; // { success, message, isAvailable }
     } catch (error) {
-      throw error;
+      throw new Error('Failed to toggle driver availability: ' + error.message);
     }
-  },
+  }
 
-  // Change Password
-  changePassword: async (token, currentPassword, newPassword) => {
+  // ─── Driver: update GPS location ──────────────────────────────────────────
+  async updateDriverLocation(token, lat, lng) {
     try {
-      const response = await fetch(`${BASE_URL}/change-password`, {
+      const response = await fetch(`${AUTH_URL}/driver/location`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({ lat, lng }),
       });
 
-      const responseText = await response.text();
-      const data = JSON.parse(responseText);
+      const data = await this._parseResponse(response);
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to change password');
-      }
-
-      // Update token if returned
-      if (data.token) {
-        await AsyncStorage.setItem('token', data.token);
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update location');
       }
 
       return data;
     } catch (error) {
-      throw error;
+      throw new Error('Failed to update driver location: ' + error.message);
     }
-  },
+  }
+}
 
-  // Logout
-  logout: async () => {
-    try {
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
-      console.log('Logged out successfully');
-    } catch (error) {
-      console.error('Logout error:', error);
-      throw error;
-    }
-  },
-
-  // Check if user is logged in
-  isLoggedIn: async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      return !!token;
-    } catch (error) {
-      return false;
-    }
-  },
-
-  // Get stored token
-  getToken: async () => {
-    try {
-      return await AsyncStorage.getItem('token');
-    } catch (error) {
-      return null;
-    }
-  },
-
-  // Get stored user
-  getStoredUser: async () => {
-    try {
-      const user = await AsyncStorage.getItem('user');
-      return user ? JSON.parse(user) : null;
-    } catch (error) {
-      return null;
-    }
-  },
-};
+export const authService = new AuthService();
