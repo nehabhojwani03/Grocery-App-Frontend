@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -18,37 +17,28 @@ import BottomTabNavigator from '../navigation/BottomTabNavigator';
 
 const Stack = createNativeStackNavigator();
 
-// Main Tab Container Component (4 tabs only - no Profile in bottom tabs)
+const SCREENS = {
+  Home:       HomeScreen,
+  OrderAgain: OrderAgainScreen,
+  Categories: CategoriesScreen,
+  Print:      PrintScreen,
+};
+
 const TabContainer = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('Home');
-
-  const handleTabPress = (tabId) => {
-    setActiveTab(tabId);
-  };
-
-  const renderScreen = () => {
-    const screenProps = {
-      navigation,
-    };
-
-    switch (activeTab) {
-      case 'Home':
-        return <HomeScreen {...screenProps} />;
-      case 'OrderAgain':
-        return <OrderAgainScreen {...screenProps} />;
-      case 'Categories':
-        return <CategoriesScreen {...screenProps} />;
-      case 'Print':
-        return <PrintScreen {...screenProps} />;
-      default:
-        return <HomeScreen {...screenProps} />;
-    }
-  };
+  const ActiveScreen = SCREENS[activeTab];
 
   return (
     <View style={styles.container}>
-      {renderScreen()}
-      <BottomTabNavigator activeTab={activeTab} onTabPress={handleTabPress} />
+      {/* ✅ This wrapper ensures screen fills all space above tab bar */}
+      <View style={styles.screenWrapper}>
+        <ActiveScreen navigation={navigation} />
+      </View>
+
+      <BottomTabNavigator
+        activeTab={activeTab}
+        onTabPress={setActiveTab}
+      />
     </View>
   );
 };
@@ -62,107 +52,60 @@ const AppNavigator = () => {
         animation: 'slide_from_right',
       }}
     >
-      {/* Main App with Bottom Tabs (4 tabs) */}
-      <Stack.Screen 
-        name="MainApp" 
+      <Stack.Screen
+        name="MainApp"
         component={TabContainer}
-        options={{
-          headerShown: false,
-        }}
       />
-      
-      {/* Profile Screen - Accessed from header person icon */}
-      <Stack.Screen 
-        name="Profile" 
+
+      <Stack.Screen
+        name="Profile"
         component={ProfileScreen}
-        options={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
       />
 
-      {/* Profile Related Screens */}
-      <Stack.Screen 
-        name="EditProfile" 
+      <Stack.Screen
+        name="EditProfile"
         component={EditProfileScreen}
-        options={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
       />
 
-      <Stack.Screen 
-        name="MyAddresses" 
+      <Stack.Screen
+        name="MyAddresses"
         component={MyAddressesScreen}
-        options={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
       />
-      <Stack.Screen 
-        name="PaymentMethods" 
+
+      <Stack.Screen
+        name="PaymentMethods"
         component={PaymentMethodsScreen}
-        options={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
       />
 
-      <Stack.Screen 
-        name="OrderHistory" 
+      <Stack.Screen
+        name="OrderHistory"
         component={OrderHistoryScreen}
-        options={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
-      />
-       {/* Settings Screen */}
-      <Stack.Screen 
-        name="Settings" 
-        component={SettingsScreen}
-        options={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
-      />
-         <Stack.Screen 
-        name="AddPaymentMethod" 
-        component={AddPaymentMethodScreen}
-        options={{
-          headerShown: false,
-          animation: 'slide_from_bottom',
-        }}
       />
 
-      {/* Map Selection Screen */}
-      <Stack.Screen 
-        name="MapSelection" 
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+      />
+
+      <Stack.Screen
+        name="AddPaymentMethod"
+        component={AddPaymentMethodScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
+
+      <Stack.Screen
+        name="MapSelection"
         component={MapSelectionScreen}
         options={{
           headerShown: true,
           headerTitle: 'Select Location',
           headerBackTitle: 'Back',
           presentation: 'modal',
-          headerStyle: {
-            backgroundColor: '#F5F5F5',
-          },
-          headerTitleStyle: {
-            fontSize: 18,
-            fontWeight: '600',
-          },
+          headerStyle: { backgroundColor: '#F5F5F5' },
+          headerTitleStyle: { fontSize: 18, fontWeight: '600' },
           headerTintColor: '#1A1A1A',
         }}
       />
-
-      {/* Cart Screen - Accessed from header cart icon */}
-      {/* <Stack.Screen 
-        name="Cart" 
-        component={CartScreen}
-        options={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
-      /> */}
     </Stack.Navigator>
   );
 };
@@ -170,6 +113,12 @@ const AppNavigator = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  // ✅ Critical — screen must fill remaining space, not bleed under tab bar
+  screenWrapper: {
+    flex: 1,
+    overflow: 'hidden',
   },
 });
 
