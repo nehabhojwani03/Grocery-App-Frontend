@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,73 +6,63 @@ import {
   TouchableOpacity,
   Image,
   StatusBar,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import tw from '../../utils/tailwind';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '../../config/apiconfig';
 
 const OrderHistoryScreen = ({ navigation }) => {
   const [selectedTab, setSelectedTab] = useState('All');
-  
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const tabs = ['All', 'Delivered', 'Processing', 'Cancelled'];
-  
-  const orders = [
-    {
-      id: '1',
-      orderNumber: 'ORD-2024-001234',
-      date: '14 Feb 2026, 10:30 AM',
-      status: 'Delivered',
-      items: 3,
-      total: '₹845',
-      products: [
-        { name: 'Lays Chips', qty: 2, image: 'https://via.placeholder.com/60/4285F4/FFFFFF?text=Lays' },
-        { name: 'Amul Milk 1L', qty: 1, image: 'https://via.placeholder.com/60/F44336/FFFFFF?text=Amul' },
-      ],
-      deliveryAddress: 'A-204, Green Valley, Pushkar',
-    },
-    {
-      id: '2',
-      orderNumber: 'ORD-2024-001233',
-      date: '12 Feb 2026, 06:15 PM',
-      status: 'Processing',
-      items: 5,
-      total: '₹1,249',
-      products: [
-        { name: 'KitKat Chocolate', qty: 3, image: 'https://via.placeholder.com/60/E53935/FFFFFF?text=Kit' },
-        { name: 'Maggi Noodles', qty: 2, image: 'https://via.placeholder.com/60/4CAF50/FFFFFF?text=Maggi' },
-      ],
-      deliveryAddress: 'Tech Park, Building B, Ajmer',
-      estimatedDelivery: '15 Feb 2026',
-    },
-    {
-      id: '3',
-      orderNumber: 'ORD-2024-001232',
-      date: '10 Feb 2026, 02:45 PM',
-      status: 'Delivered',
-      items: 2,
-      total: '₹456',
-      products: [
-        { name: 'Bread', qty: 1, image: 'https://via.placeholder.com/60/795548/FFFFFF?text=Bread' },
-        { name: 'Butter', qty: 1, image: 'https://via.placeholder.com/60/FFB74D/FFFFFF?text=Amul' },
-      ],
-      deliveryAddress: 'A-204, Green Valley, Pushkar',
-    },
-    {
-      id: '4',
-      orderNumber: 'ORD-2024-001231',
-      date: '08 Feb 2026, 09:20 AM',
-      status: 'Cancelled',
-      items: 4,
-      total: '₹978',
-      products: [
-        { name: 'Coffee', qty: 2, image: 'https://via.placeholder.com/60/000000/FFFFFF?text=Coffee' },
-        { name: 'Tea', qty: 2, image: 'https://via.placeholder.com/60/8B4513/FFFFFF?text=Tea' },
-      ],
-      deliveryAddress: 'A-204, Green Valley, Pushkar',
-      cancelReason: 'Cancelled by customer',
-    },
-  ];
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        const response = await fetch(`${BASE_URL}/orders/myorders`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (data.success) {
+          // Map backend shape to the UI shape
+          const mapped = data.data.map(order => ({
+            id: order._id,
+            orderNumber: `ORD-${order._id.slice(-8).toUpperCase()}`,
+            date: new Date(order.createdAt).toLocaleString('en-IN', {
+              day: '2-digit', month: 'short', year: 'numeric',
+              hour: '2-digit', minute: '2-digit',
+            }),
+            status: order.status === 'cancelled' ? 'Cancelled'
+              : order.isDelivered ? 'Delivered'
+                : 'Processing',
+            items: order.orderItems.reduce((sum, i) => sum + i.quantity, 0),
+            total: `₹${order.totalPrice}`,
+            products: order.orderItems.slice(0, 2).map(i => ({
+              name: i.name,
+              image: `https://via.placeholder.com/60/4285F4/FFFFFF?text=${i.name.charAt(0)}`,
+            })),
+            deliveryAddress: order.shippingAddress?.address || '',
+            estimatedDelivery: !order.isDelivered && order.status !== 'cancelled'
+              ? 'Within 15 min' : undefined,
+            cancelReason: order.status === 'cancelled' ? 'Cancelled by customer' : undefined,
+          }));
+          setOrders(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to fetch orders:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrders();
+  }, []);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -87,13 +77,13 @@ const OrderHistoryScreen = ({ navigation }) => {
     }
   };
 
-  const filteredOrders = selectedTab === 'All' 
-    ? orders 
+  const filteredOrders = selectedTab === 'All'
+    ? orders
     : orders.filter(order => order.status === selectedTab);
 
   const renderOrder = (order) => {
     const statusStyle = getStatusColor(order.status);
-    
+
     return (
       <TouchableOpacity
         key={order.id}
@@ -227,7 +217,7 @@ const OrderHistoryScreen = ({ navigation }) => {
   return (
     <View style={tw`flex-1 bg-gray-50`}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
+
       {/* Header */}
       <SafeAreaView edges={['top']} style={tw`bg-white shadow-sm`}>
         <View style={tw`px-4 py-3`}>
@@ -242,8 +232,8 @@ const OrderHistoryScreen = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Tabs */}
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={tw`gap-2`}
           >
@@ -264,12 +254,14 @@ const OrderHistoryScreen = ({ navigation }) => {
       </SafeAreaView>
 
       {/* Orders List */}
-      <ScrollView 
+      <ScrollView
         style={tw`flex-1`}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={tw`p-4 pb-6`}
       >
-        {filteredOrders.length > 0 ? (
+        {loading ? (
+          <ActivityIndicator size="large" color="#4CAF50" style={tw`mt-20`} />
+        ) : filteredOrders.length > 0 ? (
           filteredOrders.map(renderOrder)
         ) : (
           <View style={tw`items-center justify-center py-20`}>

@@ -11,9 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { BASE_URL } from '../config/apiconfig';
 import { useCart } from '../context/CartContext';
 import AddressSelectionModal from './Homescreen/AddressSelectionModal';
 import { CommonActions } from '@react-navigation/native';
+import { Alert, Modal, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PRODUCT_IMAGE_MAP = {
     '69f747441a331c9902d3a5b8': require('../assets/categories/vegetablefruits/tomato.jpg'),
@@ -215,6 +218,9 @@ const CheckoutScreen = ({ navigation }) => {
     const { cartItems, cartCount, cartTotal, clearCart } = useCart();
     const [showAddressModal, setShowAddressModal] = useState(false);
     const [selectedAddress, setSelectedAddress] = useState(null);
+    const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+    const [orderPlaced, setOrderPlaced] = useState(false);
+    const [placedOrderId, setPlacedOrderId] = useState(null);
 
     const deliveryFee = cartTotal >= 299 ? 0 : 25;
     const grandTotal = cartTotal + deliveryFee;
@@ -237,7 +243,7 @@ const CheckoutScreen = ({ navigation }) => {
         }
     };
 
-const renderItem = ({ item }) => {
+    const renderItem = ({ item }) => {
         // item from backend: { _id, product: { _id, name, price... }, quantity, price }
         const product = item.product;
         const productId = product?._id;
@@ -410,23 +416,64 @@ const renderItem = ({ item }) => {
                         !selectedAddress && styles.placeOrderBtnDisabled,
                     ]}
                     activeOpacity={0.85}
-                    onPress={() => {
+                    onPress={async () => {
                         if (!selectedAddress) {
                             setShowAddressModal(true);
                             return;
                         }
-                        clearCart();
-                        navigation.dispatch(
-                            CommonActions.reset({
-                                index: 0,
-                                routes: [{ name: 'MainApp' }],
-                            })
-                        );
+
+                        setIsPlacingOrder(true);
+                        try {
+                            const token = await AsyncStorage.getItem('token');
+
+                            const orderItems = cartItems.map(item => ({
+                                product: item.product._id,
+                                name: item.product.name,
+                                quantity: item.quantity,
+                                price: item.price,
+                            }));
+
+                            const response = await fetch(`${BASE_URL}/orders`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    Authorization: `Bearer ${token}`,
+                                },
+                                body: JSON.stringify({
+                                    orderItems,
+                                    shippingAddress: {
+                                        label: selectedAddress.label,
+                                        address: selectedAddress.address,
+                                    },
+                                    paymentMethod: 'Cash on Delivery',
+                                    itemsPrice: cartTotal,
+                                    taxPrice: 0,
+                                    shippingPrice: deliveryFee,
+                                    totalPrice: grandTotal,
+                                }),
+                            });
+
+                            const data = await response.json();
+
+                            if (!response.ok) throw new Error(data.error || 'Failed to place order');
+
+                            setPlacedOrderId(data.data._id);
+                            clearCart();
+                            setOrderPlaced(true);
+                        } catch (error) {
+                            Alert.alert('Error', error.message || 'Something went wrong. Please try again.');
+                        } finally {
+                            setIsPlacingOrder(false);
+                        }
                     }}
                 >
-                    <Text style={styles.placeOrderText}>
-                        {selectedAddress ? 'Place Order  →' : 'Add Address to Continue'}
-                    </Text>
+                    {isPlacingOrder ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                        <Text style={styles.placeOrderText}>
+                            {selectedAddress ? 'Place Order  →' : 'Add Address to Continue'}
+                        </Text>
+                    )}
                 </TouchableOpacity>
             </View>
 
@@ -439,6 +486,49 @@ const renderItem = ({ item }) => {
                     handleAddressSelect(data);
                 }}
             />
+
+            <Modal visible={orderPlaced} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <View style={styles.successIconWrap}>
+                            <Icon name="checkmark-circle" size={64} color="#4CAF50" />
+                        </View>
+                        <Text style={styles.modalTitle}>Order Placed! 🎉</Text>
+                        <Text style={styles.modalSub}>
+                            Your order is confirmed and will be delivered in 15 minutes.
+                        </Text>
+                        {placedOrderId && (
+                            <Text style={styles.modalOrderId}>
+                                Order ID: #{placedOrderId.slice(-8).toUpperCase()}
+                            </Text>
+                        )}
+                        <TouchableOpacity
+                            style={styles.modalBtn}
+                            onPress={() => {
+                                setOrderPlaced(false);
+                                navigation.dispatch(
+                                    CommonActions.reset({ index: 0, routes: [{ name: 'MainApp' }] })
+                                );
+                            }}
+                        >
+                            <Text style={styles.modalBtnText}>Continue Shopping</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.modalSecondaryBtn}
+                            onPress={() => {
+                                setOrderPlaced(false);
+                                navigation.dispatch(
+                                    CommonActions.reset({ index: 0, routes: [{ name: 'MainApp' }] })
+                                );
+                                // Navigate to order history after reset settles
+                                setTimeout(() => navigation.navigate('OrderHistory'), 300);
+                            }}
+                        >
+                            <Text style={styles.modalSecondaryBtnText}>View Order</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };
@@ -722,6 +812,71 @@ const styles = StyleSheet.create({
     },
     placeOrderBtnDisabled: { backgroundColor: '#E91E63' },
     placeOrderText: { fontSize: 13, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 24,
+    },
+    modalCard: {
+        backgroundColor: '#fff',
+        borderRadius: 24,
+        padding: 28,
+        alignItems: 'center',
+        width: '100%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    successIconWrap: {
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: '#111',
+        marginBottom: 8,
+        letterSpacing: -0.4,
+    },
+    modalSub: {
+        fontSize: 13,
+        color: '#777',
+        textAlign: 'center',
+        lineHeight: 20,
+        marginBottom: 12,
+    },
+    modalOrderId: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#aaa',
+        marginBottom: 24,
+        letterSpacing: 0.5,
+    },
+    modalBtn: {
+        backgroundColor: '#1A1A1A',
+        borderRadius: 14,
+        paddingVertical: 14,
+        paddingHorizontal: 32,
+        width: '100%',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    modalBtnText: {
+        color: '#fff',
+        fontWeight: '800',
+        fontSize: 14,
+    },
+    modalSecondaryBtn: {
+        paddingVertical: 10,
+    },
+    modalSecondaryBtnText: {
+        color: '#E91E63',
+        fontWeight: '700',
+        fontSize: 13,
+    },
 });
 
 export default CheckoutScreen;
