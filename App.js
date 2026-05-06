@@ -6,6 +6,7 @@ import { loadStoredAuth } from './src/store/slices/authSlice';
 import { loadStoredUser } from './src/store/slices/userSlice';
 import RootNavigator from './src/navigation/RootNavigator';
 import notificationService from './src/services/notificationService';
+import { CartProvider } from './src/context/CartContext';
 
 // App Content with Redux hooks
 const AppContent = () => {
@@ -91,9 +92,11 @@ const AppContent = () => {
 // Main App Component with Redux Provider
 const App = () => {
   return (
+    <CartProvider>
     <Provider store={store}>
       <AppContent />
     </Provider>
+    </CartProvider>
   );
 };
 

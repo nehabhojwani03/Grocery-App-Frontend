@@ -85,7 +85,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
           {'\n\n'}
           Then follow the setup guide.
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.errorButton}
           onPress={() => navigation.goBack()}
         >
@@ -113,7 +113,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
         );
         setHasLocationPermission(granted);
-        
+
         if (!granted && route?.params?.type === 'current') {
           // If came from "use current location", request permission
           requestLocationPermission();
@@ -139,17 +139,17 @@ const MapSelectionScreen = ({ navigation, route }) => {
             buttonPositive: 'OK',
           }
         );
-        
+
         const hasPermission = granted === PermissionsAndroid.RESULTS.GRANTED;
         setHasLocationPermission(hasPermission);
-        
+
         if (!hasPermission) {
           Alert.alert(
             'Permission Required',
             'Location permission is required to use this feature. Please enable it in your device settings.',
             [
               { text: 'Cancel', style: 'cancel' },
-              { 
+              {
                 text: 'Open Settings',
                 onPress: () => {
                   if (Platform.OS === 'android') {
@@ -161,7 +161,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
             ]
           );
         }
-        
+
         return hasPermission;
       } catch (err) {
         console.warn('Permission error:', err);
@@ -175,7 +175,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
   const getCurrentLocation = async () => {
     try {
       console.log('Getting current location...');
-      
+
       // Check if Geolocation is available
       if (!Geolocation || typeof Geolocation.getCurrentPosition !== 'function') {
         Alert.alert(
@@ -185,7 +185,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
         );
         return;
       }
-      
+
       // Check permission first
       if (!hasLocationPermission) {
         const granted = await requestLocationPermission();
@@ -195,22 +195,17 @@ const MapSelectionScreen = ({ navigation, route }) => {
       }
 
       setLoading(true);
-      
+
       // Add timeout wrapper
       const timeoutId = setTimeout(() => {
         setLoading(false);
-        Alert.alert(
-          'Timeout',
-          'Unable to get location. Please check if location services are enabled and try again.',
-          [{ text: 'OK' }]
-        );
       }, 15000); // 15 second timeout
 
       Geolocation.getCurrentPosition(
         (position) => {
           clearTimeout(timeoutId);
           console.log('Location received:', position);
-          
+
           const { latitude, longitude } = position.coords;
           const newRegion = {
             latitude,
@@ -218,17 +213,17 @@ const MapSelectionScreen = ({ navigation, route }) => {
             latitudeDelta: 0.005,
             longitudeDelta: 0.005,
           };
-          
+
           setRegion(newRegion);
           setMarkerPosition({ latitude, longitude });
-          
+
           // Only animate if map is ready
           if (mapRef.current && mapReady) {
             setTimeout(() => {
               mapRef.current?.animateToRegion(newRegion, 1000);
             }, 100);
           }
-          
+
           reverseGeocode(latitude, longitude);
           setLoading(false);
         },
@@ -236,9 +231,9 @@ const MapSelectionScreen = ({ navigation, route }) => {
           clearTimeout(timeoutId);
           console.log('Location error:', error.code, error.message);
           setLoading(false);
-          
+
           let errorMessage = 'Unable to get your current location.';
-          
+
           switch (error.code) {
             case 1: // PERMISSION_DENIED
               errorMessage = 'Location permission denied. Please enable it in settings.';
@@ -252,16 +247,10 @@ const MapSelectionScreen = ({ navigation, route }) => {
             default:
               errorMessage = 'Unable to get location. Please try again or set location manually.';
           }
-          
-          Alert.alert(
-            'Location Error',
-            errorMessage,
-            [{ text: 'OK' }]
-          );
         },
-        { 
-          enableHighAccuracy: true, 
-          timeout: 15000, 
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
           maximumAge: 10000,
           showLocationDialog: true,
           forceRequestLocation: true,
@@ -278,18 +267,18 @@ const MapSelectionScreen = ({ navigation, route }) => {
     try {
       // You need to add your Google Maps API key here
       const API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY';
-      
+
       if (API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY') {
         // Fallback address if API key not set
         setAddress(`Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
         return;
       }
-      
+
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${API_KEY}`
       );
       const data = await response.json();
-      
+
       if (data.results && data.results.length > 0) {
         setAddress(data.results[0].formatted_address);
       } else {
@@ -329,12 +318,12 @@ const MapSelectionScreen = ({ navigation, route }) => {
     };
 
     console.log('Location confirmed:', locationData);
-    
+
     // Navigate back with the selected location
     if (route?.params?.onLocationSelect) {
       route.params.onLocationSelect(locationData);
     }
-    
+
     navigation.goBack();
   };
 
@@ -350,7 +339,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
       );
       return;
     }
-    
+
     getCurrentLocation();
   };
 
@@ -359,7 +348,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
       {/* Map */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         style={styles.map}
         initialRegion={region}
         onRegionChangeComplete={handleRegionChangeComplete}
@@ -395,7 +384,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
       {/* Top Bar */}
       <SafeAreaView edges={['top']} style={styles.topBar}>
         <View style={styles.topContent}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
@@ -416,7 +405,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
       </SafeAreaView>
 
       {/* Current Location Button */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.currentLocationButton}
         onPress={moveToCurrentLocation}
         activeOpacity={0.8}
@@ -432,7 +421,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
       {/* Bottom Card */}
       <View style={styles.bottomCard}>
         <View style={styles.dragHandle} />
-        
+
         <View style={styles.addressSection}>
           <View style={styles.locationIconContainer}>
             <Icon name="location" size={24} color="#E91E63" />
@@ -458,7 +447,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
               setAddressDetails({ ...addressDetails, houseNumber: text })
             }
           />
-          
+
           <TextInput
             style={styles.input}
             placeholder="Floor (Optional)"
@@ -468,7 +457,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
               setAddressDetails({ ...addressDetails, floor: text })
             }
           />
-          
+
           <TextInput
             style={styles.input}
             placeholder="Nearby landmark (Optional)"
@@ -486,12 +475,12 @@ const MapSelectionScreen = ({ navigation, route }) => {
             <Icon name="home" size={20} color="#666" />
             <Text style={styles.addressTypeText}>Home</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity style={styles.addressTypeButton}>
             <Icon name="briefcase" size={20} color="#666" />
             <Text style={styles.addressTypeText}>Work</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity style={styles.addressTypeButton}>
             <Icon name="location" size={20} color="#666" />
             <Text style={styles.addressTypeText}>Other</Text>
@@ -499,7 +488,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
         </View>
 
         {/* Confirm Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.confirmButton}
           onPress={handleConfirmLocation}
           activeOpacity={0.8}

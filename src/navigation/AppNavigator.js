@@ -3,7 +3,10 @@ import { View, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import OrderAgainScreen from '../screens/OrderAgainScreen';
-import CategoriesScreen from '../screens/CategoriesScreen';
+import CategoriesScreen from '../screens/category/CategoriesScreen';
+import CategoryProductsScreen from '../screens/category/CategoryProductsScreen';
+import CartScreen from '../screens/CartScreen';
+import CheckoutScreen from '../screens/CheckoutScreen';
 import PrintScreen from '../screens/PrintScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -90,6 +93,24 @@ const AppNavigator = () => {
       <Stack.Screen
         name="AddPaymentMethod"
         component={AddPaymentMethodScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
+
+      <Stack.Screen
+        name="CategoryProductScreen"
+        component={CategoryProductsScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
+
+       <Stack.Screen
+        name="Cart"
+        component={CartScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
+
+       <Stack.Screen
+        name="Checkout"
+        component={CheckoutScreen}
         options={{ animation: 'slide_from_bottom' }}
       />
 
