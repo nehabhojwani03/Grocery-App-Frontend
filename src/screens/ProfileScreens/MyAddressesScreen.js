@@ -16,7 +16,7 @@ const MyAddressesScreen = ({ navigation }) => {
     {
       id: '1',
       type: 'HOME',
-      name: 'Shivam Kumar',
+      name: 'Neha',
       address: 'A-204, Green Valley Apartments, Sector 12',
       city: 'Pushkar, Rajasthan',
       pincode: '305022',
@@ -26,7 +26,7 @@ const MyAddressesScreen = ({ navigation }) => {
     {
       id: '2',
       type: 'WORK',
-      name: 'Shivam Kumar',
+      name: 'Neha',
       address: 'Tech Park, Building B, Floor 3',
       city: 'Ajmer, Rajasthan',
       pincode: '305001',

@@ -11,8 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCart } from '../../context/CartContext';
 import Icon1 from 'react-native-vector-icons/Entypo';
-import ProductDetailModal from '../../component/Productdetailmodal'
-import { BASE_URL } from '../../config/apiconfig'
+import { BASE_URL } from '../../config/apiconfig';
 
 const BADGE_COLORS = {
     Fresh: { bg: '#E8F5E9', text: '#2E7D32' },
@@ -166,12 +165,10 @@ const IMAGE_MAP = {
     bc8: require('../../assets/categories/babycare/pamperswipes.jpg'),
 };
 
-
 const ProductCard = ({ item, accent, onAdd, onRemove, quantity, onPress }) => {
     const badge = item.badge ? BADGE_COLORS[item.badge] : null;
 
     return (
-        // CHANGE: Outer TouchableOpacity triggers the detail modal
         <TouchableOpacity
             style={styles.card}
             activeOpacity={0.92}
@@ -192,7 +189,6 @@ const ProductCard = ({ item, accent, onAdd, onRemove, quantity, onPress }) => {
                 <Text style={styles.price}>₹{item.price}</Text>
 
                 {quantity === 0 ? (
-                    // CHANGE: stopPropagation pattern — tap ADD without opening modal
                     <TouchableOpacity
                         style={[styles.addBtn, { borderColor: accent }]}
                         onPress={(e) => { e.stopPropagation?.(); onAdd(item.id); }}
@@ -224,33 +220,22 @@ const ProductCard = ({ item, accent, onAdd, onRemove, quantity, onPress }) => {
 
 const CategoryProductsScreen = ({ route, navigation }) => {
     const { categoryName = 'Vegetables & Fruits' } = route?.params ?? {};
-
-    // REPLACE: const data = CATEGORY_DATA[categoryName];
     const meta = CATEGORY_META[categoryName];
-
     const { cart, addItem, removeItem, cartCount, cartTotal } = useCart();
     const [apiProducts, setApiProducts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedProduct, setSelectedProduct] = useState(null);
-    const [modalVisible, setModalVisible] = useState(false);
 
-    // Fetch from API
     useEffect(() => {
         fetch(`${BASE_URL}/products?category=${encodeURIComponent(categoryName)}`)
-            .then(r => {
-                console.log('Status:', r.status);
-                console.log('URL hit:', r.url);
-                return r.text(); // text first, not json
-            })
+            .then(r => r.text())
             .then(text => {
-                console.log('Raw response:', text); // see what's actually coming back
                 const d = JSON.parse(text);
                 if (d.success) setApiProducts(d.products);
             })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [categoryName]);
-    // Merge API data + local images
+
     const products = apiProducts.map(p => ({
         ...p,
         id: p.productKey,
@@ -259,7 +244,6 @@ const CategoryProductsScreen = ({ route, navigation }) => {
 
     const handleAdd = useCallback((id) => {
         const product = products.find(p => p.id === id);
-        // _id now comes directly from API — no PRODUCT_ID_MAP needed
         addItem(product);
     }, [products, addItem]);
 
@@ -268,8 +252,14 @@ const CategoryProductsScreen = ({ route, navigation }) => {
         removeItem(product._id);
     }, [products, removeItem]);
 
-    const handleCardPress = useCallback((item) => { setSelectedProduct(item); setModalVisible(true); }, []);
-    const handleCloseModal = useCallback(() => setModalVisible(false), []);
+    // Navigate to the detail screen, passing the full products list for related items
+    const handleCardPress = useCallback((item) => {
+        navigation.navigate('ProductDetailScreen', {
+            product: item,
+            categoryName,
+            products,
+        });
+    }, [navigation, categoryName, products]);
 
     const renderItem = ({ item }) => (
         <ProductCard
@@ -296,7 +286,7 @@ const CategoryProductsScreen = ({ route, navigation }) => {
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
-            <StatusBar barStyle="dark-content" backgroundColor="#E8F5FB" />
+            <StatusBar barStyle="dark-content" backgroundColor="#F2F0EF" />
 
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation?.goBack()} style={styles.backBtn}>
@@ -304,7 +294,6 @@ const CategoryProductsScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>{categoryName}</Text>
-                    {/* REPLACE data.subtitle → meta.subtitle */}
                     <Text style={styles.headerSubtitle}>{meta.subtitle}</Text>
                 </View>
                 <TouchableOpacity style={styles.headerCartWrap} onPress={() => navigation?.navigate('Cart')} activeOpacity={0.8}>
@@ -342,23 +331,12 @@ const CategoryProductsScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                 </View>
             )}
-
-            <ProductDetailModal
-                visible={modalVisible}
-                product={selectedProduct}
-                accent={meta.accent}
-                quantity={selectedProduct ? (cart[selectedProduct._id] ?? 0) : 0}
-                onAdd={handleAdd}
-                onRemove={handleRemove}
-                onClose={handleCloseModal}
-            />
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F2F0EF' },
-
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -398,10 +376,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 3,
     },
     cartBadgeText: { fontSize: 9, color: '#fff', fontWeight: '800' },
-
     listContent: { paddingHorizontal: 10, paddingBottom: 20 },
     row: { justifyContent: 'space-between' },
-
     card: {
         width: '48.5%',
         backgroundColor: '#fff',
@@ -435,7 +411,6 @@ const styles = StyleSheet.create({
     productImage: { width: 90, height: 90 },
     productName: { fontSize: 13, fontWeight: '700', color: '#1A1A1A', letterSpacing: -0.2, marginBottom: 2 },
     productUnit: { fontSize: 11, color: '#A0AAB4', fontWeight: '500', marginBottom: 10 },
-
     cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     price: { fontSize: 15, fontWeight: '800', color: '#111', letterSpacing: -0.3 },
     addBtn: { borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
@@ -444,7 +419,6 @@ const styles = StyleSheet.create({
     qtyBtn: { paddingHorizontal: 8, paddingVertical: 4 },
     qtyBtnText: { fontSize: 16, fontWeight: '700', lineHeight: 20 },
     qtyNum: { fontSize: 13, fontWeight: '800', minWidth: 16, textAlign: 'center' },
-
     cartBar: {
         position: 'absolute',
         bottom: 16,

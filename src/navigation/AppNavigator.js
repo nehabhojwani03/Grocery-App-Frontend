@@ -5,6 +5,7 @@ import HomeScreen from '../screens/HomeScreen';
 import OrderAgainScreen from '../screens/OrderAgainScreen';
 import CategoriesScreen from '../screens/category/CategoriesScreen';
 import CategoryProductsScreen from '../screens/category/CategoryProductsScreen';
+import ProductDetailScreen from '../screens/category/ProductDetailScreen'
 import CartScreen from '../screens/CartScreen';
 import CheckoutScreen from '../screens/CheckoutScreen';
 import PrintScreen from '../screens/PrintScreen';
@@ -99,6 +100,13 @@ const AppNavigator = () => {
       <Stack.Screen
         name="CategoryProductScreen"
         component={CategoryProductsScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
+
+
+      <Stack.Screen
+        name="ProductDetailScreen"
+        component={ProductDetailScreen}
         options={{ animation: 'slide_from_bottom' }}
       />
 

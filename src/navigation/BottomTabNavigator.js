@@ -27,8 +27,8 @@ const C = {
 // ─── Tab config ───────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'Home',       label: 'Home',       icon: 'home-outline'  },
-  { id: 'OrderAgain', label: 'Orders',     icon: 'bag-outline',   badge: 3 },
-  { id: 'Categories', label: 'Categories', icon: 'grid-outline'  },
+   { id: 'Categories', label: 'Categories', icon: 'grid-outline'  },
+  { id: 'OrderAgain', label: 'Orders',     icon: 'bag-outline'},
   { id: 'Print',      label: 'Print',      icon: 'print-outline' },
 ];
 

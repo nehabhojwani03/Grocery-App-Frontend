@@ -279,7 +279,7 @@ const AddPaymentMethodScreen = ({ navigation }) => {
               style={tw`flex-1 text-base text-[#1A1A1A] ml-3`}
               value={cardHolder}
               onChangeText={setCardHolder}
-              placeholder="SHIVAM KUMAR"
+              placeholder="Neha"
               autoCapitalize="characters"
             />
           </View>

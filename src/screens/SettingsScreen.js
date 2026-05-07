@@ -7,23 +7,98 @@ import {
   Switch,
   StatusBar,
   Alert,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/Ionicons';
+import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import tw from '../utils/tailwind';
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const SectionLabel = ({ title }) => (
+  <Text style={styles.sectionLabel}>{title}</Text>
+);
+
+const MenuCard = ({ children }) => (
+  <View style={styles.menuCard}>{children}</View>
+);
+
+const Divider = () => <View style={styles.divider} />;
+
+const MenuItem = ({
+  icon,
+  iconLib = 'Feather',
+  label,
+  subtitle,
+  onPress,
+  rightText,
+  showChevron = true,
+  rightElement,
+}) => {
+  const IconComponent =
+    iconLib === 'MaterialCommunity' ? MaterialCommunityIcons : Feather;
+
+  return (
+    <TouchableOpacity
+      style={styles.menuRow}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+      disabled={!onPress}
+    >
+      <View style={styles.menuIcon}>
+        <IconComponent name={icon} size={17} color="#555" />
+      </View>
+      <View style={styles.menuText}>
+        <Text style={styles.menuLabel}>{label}</Text>
+        {subtitle ? <Text style={styles.menuSub}>{subtitle}</Text> : null}
+      </View>
+      {rightElement ?? (
+        <View style={styles.menuRight}>
+          {rightText ? <Text style={styles.rightText}>{rightText}</Text> : null}
+          {showChevron && <Feather name="chevron-right" size={17} color="#C8CDD4" />}
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
+
+const ToggleItem = ({ icon, iconLib = 'Feather', label, subtitle, value, onToggle }) => {
+  const IconComponent =
+    iconLib === 'MaterialCommunity' ? MaterialCommunityIcons : Feather;
+
+  return (
+    <View style={styles.menuRow}>
+      <View style={styles.menuIcon}>
+        <IconComponent name={icon} size={17} color="#555" />
+      </View>
+      <View style={styles.menuText}>
+        <Text style={styles.menuLabel}>{label}</Text>
+        {subtitle ? <Text style={styles.menuSub}>{subtitle}</Text> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onToggle}
+        trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
+        thumbColor="#fff"
+        ios_backgroundColor="#E0E0E0"
+      />
+    </View>
+  );
+};
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 const SettingsScreen = ({ navigation }) => {
-  // Settings states
-  const [pushNotifications, setPushNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications]   = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
-  const [smsNotifications, setSmsNotifications] = useState(false);
-  const [orderUpdates, setOrderUpdates] = useState(true);
-  const [promotionalOffers, setPromotionalOffers] = useState(true);
-  const [locationServices, setLocationServices] = useState(true);
-  const [autoPlayVideos, setAutoPlayVideos] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [biometricAuth, setBiometricAuth] = useState(false);
+  const [smsNotifications, setSmsNotifications]     = useState(false);
+  const [orderUpdates, setOrderUpdates]             = useState(true);
+  const [promotionalOffers, setPromotionalOffers]   = useState(true);
+  const [locationServices, setLocationServices]     = useState(true);
+  const [autoPlayVideos, setAutoPlayVideos]         = useState(false);
+  const [darkMode, setDarkMode]                     = useState(false);
+  const [biometricAuth, setBiometricAuth]           = useState(false);
+  const [dataSaver, setDataSaver]                   = useState(false);
 
   const handleClearCache = () => {
     Alert.alert(
@@ -34,10 +109,7 @@ const SettingsScreen = ({ navigation }) => {
         {
           text: 'Clear',
           style: 'destructive',
-          onPress: () => {
-            // Implement cache clearing logic
-            Alert.alert('Success', 'Cache cleared successfully');
-          },
+          onPress: () => Alert.alert('Success', 'Cache cleared successfully'),
         },
       ]
     );
@@ -53,7 +125,6 @@ const SettingsScreen = ({ navigation }) => {
           text: 'Reset',
           style: 'destructive',
           onPress: () => {
-            // Reset all settings
             setPushNotifications(true);
             setEmailNotifications(true);
             setSmsNotifications(false);
@@ -63,6 +134,7 @@ const SettingsScreen = ({ navigation }) => {
             setAutoPlayVideos(false);
             setDarkMode(false);
             setBiometricAuth(false);
+            setDataSaver(false);
             Alert.alert('Success', 'Settings reset to default');
           },
         },
@@ -70,314 +142,379 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
-  const renderSettingItem = ({ 
-    icon, 
-    iconType = 'Ionicons',
-    title, 
-    subtitle, 
-    hasSwitch, 
-    switchValue, 
-    onSwitchToggle,
-    onPress,
-    rightText,
-    showChevron = true,
-    iconColor = '#4CAF50'
-  }) => {
-    const IconComponent = iconType === 'MaterialCommunityIcons' ? MaterialCommunityIcons : Icon;
-
-    return (
-      <TouchableOpacity
-        style={tw`flex-row items-center justify-between px-4 py-4 border-b border-gray-100`}
-        onPress={hasSwitch ? null : onPress}
-        disabled={hasSwitch}
-        activeOpacity={hasSwitch ? 1 : 0.7}
-      >
-        <View style={tw`flex-row items-center flex-1`}>
-          <View style={[tw`w-10 h-10 rounded-full justify-center items-center`, { backgroundColor: `${iconColor}20` }]}>
-            <IconComponent name={icon} size={22} color={iconColor} />
-          </View>
-          <View style={tw`flex-1 ml-3`}>
-            <Text style={tw`text-base font-semibold text-[#1A1A1A]`}>
-              {title}
-            </Text>
-            {subtitle && (
-              <Text style={tw`text-sm text-gray-500 mt-0.5`}>
-                {subtitle}
-              </Text>
-            )}
-          </View>
-        </View>
-        {hasSwitch ? (
-          <Switch
-            value={switchValue}
-            onValueChange={onSwitchToggle}
-            trackColor={{ false: '#D1D5DB', true: '#4CAF50' }}
-            thumbColor="#FFFFFF"
-          />
-        ) : (
-          <View style={tw`flex-row items-center`}>
-            {rightText && (
-              <Text style={tw`text-sm text-gray-500 mr-2`}>{rightText}</Text>
-            )}
-            {showChevron && <Icon name="chevron-forward" size={20} color="#9CA3AF" />}
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
-
-  const renderSectionHeader = (title) => {
-    return (
-      <View style={tw`px-4 py-3 bg-gray-50`}>
-        <Text style={tw`text-sm font-bold text-gray-500 uppercase tracking-wide`}>
-          {title}
-        </Text>
-      </View>
-    );
-  };
-
   return (
-    <View style={tw`flex-1 bg-gray-50`}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      {/* Header */}
-      <SafeAreaView edges={['top']} style={tw`bg-white shadow-sm`}>
-        <View style={tw`flex-row items-center px-4 py-3`}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={tw`mr-3`}
-          >
-            <Icon name="chevron-back" size={24} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text style={tw`text-lg font-semibold text-[#1A1A1A]`}>
-            Settings
-          </Text>
-        </View>
-      </SafeAreaView>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F2F0EF" />
 
-      <ScrollView 
-        style={tw`flex-1`}
+      <ScrollView
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
-        {/* Notifications Section */}
-        {renderSectionHeader('Notifications')}
-        <View style={tw`bg-white mb-2`}>
-          {renderSettingItem({
-            icon: 'notifications',
-            title: 'Push Notifications',
-            subtitle: 'Receive push notifications',
-            hasSwitch: true,
-            switchValue: pushNotifications,
-            onSwitchToggle: setPushNotifications,
-          })}
-          {renderSettingItem({
-            icon: 'mail',
-            title: 'Email Notifications',
-            subtitle: 'Receive email updates',
-            hasSwitch: true,
-            switchValue: emailNotifications,
-            onSwitchToggle: setEmailNotifications,
-          })}
-          {renderSettingItem({
-            icon: 'chatbubble',
-            title: 'SMS Notifications',
-            subtitle: 'Receive SMS updates',
-            hasSwitch: true,
-            switchValue: smsNotifications,
-            onSwitchToggle: setSmsNotifications,
-          })}
-          {renderSettingItem({
-            icon: 'cart',
-            title: 'Order Updates',
-            subtitle: 'Get notified about order status',
-            hasSwitch: true,
-            switchValue: orderUpdates,
-            onSwitchToggle: setOrderUpdates,
-          })}
-          {renderSettingItem({
-            icon: 'pricetag',
-            title: 'Promotional Offers',
-            subtitle: 'Receive offers and deals',
-            hasSwitch: true,
-            switchValue: promotionalOffers,
-            onSwitchToggle: setPromotionalOffers,
-          })}
-        </View>
-
-        {/* App Preferences Section */}
-        {renderSectionHeader('App Preferences')}
-        <View style={tw`bg-white mb-2`}>
-          {renderSettingItem({
-            icon: 'location',
-            title: 'Location Services',
-            subtitle: 'Allow app to access your location',
-            hasSwitch: true,
-            switchValue: locationServices,
-            onSwitchToggle: setLocationServices,
-            iconColor: '#2196F3',
-          })}
-          {renderSettingItem({
-            icon: 'play-circle',
-            iconType: 'Ionicons',
-            title: 'Auto-Play Videos',
-            subtitle: 'Play videos automatically',
-            hasSwitch: true,
-            switchValue: autoPlayVideos,
-            onSwitchToggle: setAutoPlayVideos,
-            iconColor: '#FF5722',
-          })}
-          {renderSettingItem({
-            icon: 'moon',
-            title: 'Dark Mode',
-            subtitle: 'Coming soon',
-            hasSwitch: true,
-            switchValue: darkMode,
-            onSwitchToggle: setDarkMode,
-            iconColor: '#9C27B0',
-          })}
-          {renderSettingItem({
-            icon: 'globe',
-            title: 'Language',
-            rightText: 'English',
-            onPress: () => Alert.alert('Language', 'Language selection coming soon'),
-            iconColor: '#FF9800',
-          })}
-          {renderSettingItem({
-            icon: 'cash',
-            title: 'Currency',
-            rightText: 'INR (₹)',
-            onPress: () => Alert.alert('Currency', 'Currency selection coming soon'),
-            iconColor: '#4CAF50',
-          })}
-        </View>
-
-        {/* Security Section */}
-        {renderSectionHeader('Security & Privacy')}
-        <View style={tw`bg-white mb-2`}>
-          {renderSettingItem({
-            icon: 'finger-print',
-            title: 'Biometric Authentication',
-            subtitle: 'Use fingerprint/face to login',
-            hasSwitch: true,
-            switchValue: biometricAuth,
-            onSwitchToggle: setBiometricAuth,
-            iconColor: '#E91E63',
-          })}
-          {renderSettingItem({
-            icon: 'lock-closed',
-            title: 'Change Password',
-            onPress: () => navigation.navigate('ChangePassword'),
-            iconColor: '#FF5722',
-          })}
-          {renderSettingItem({
-            icon: 'shield-checkmark',
-            title: 'Privacy Policy',
-            onPress: () => navigation.navigate('Privacy'),
-            iconColor: '#2196F3',
-          })}
-          {renderSettingItem({
-            icon: 'document-text',
-            title: 'Terms & Conditions',
-            onPress: () => navigation.navigate('Terms'),
-            iconColor: '#9C27B0',
-          })}
-        </View>
-
-        {/* Data & Storage Section */}
-        {renderSectionHeader('Data & Storage')}
-        <View style={tw`bg-white mb-2`}>
-          {renderSettingItem({
-            icon: 'trash',
-            title: 'Clear Cache',
-            subtitle: 'Free up storage space',
-            onPress: handleClearCache,
-            showChevron: false,
-            iconColor: '#FF9800',
-          })}
-          {renderSettingItem({
-            icon: 'download',
-            title: 'Download Quality',
-            rightText: 'High',
-            onPress: () => Alert.alert('Download Quality', 'Quality settings coming soon'),
-            iconColor: '#4CAF50',
-          })}
-          {renderSettingItem({
-            icon: 'cellular',
-            iconType: 'Ionicons',
-            title: 'Data Saver',
-            subtitle: 'Reduce data usage',
-            hasSwitch: true,
-            switchValue: false,
-            onSwitchToggle: () => {},
-            iconColor: '#00BCD4',
-          })}
-        </View>
-
-        {/* About Section */}
-        {renderSectionHeader('About')}
-        <View style={tw`bg-white mb-2`}>
-          {renderSettingItem({
-            icon: 'information-circle',
-            title: 'App Version',
-            rightText: '1.0.0',
-            showChevron: false,
-            iconColor: '#607D8B',
-          })}
-          {renderSettingItem({
-            icon: 'star',
-            title: 'Rate Us',
-            onPress: () => Alert.alert('Rate Us', 'Thank you for your support!'),
-            iconColor: '#FFC107',
-          })}
-          {renderSettingItem({
-            icon: 'share-social',
-            title: 'Share App',
-            onPress: () => Alert.alert('Share', 'Share feature coming soon'),
-            iconColor: '#2196F3',
-          })}
-          {renderSettingItem({
-            icon: 'help-circle',
-            title: 'Help & Support',
-            onPress: () => navigation.navigate('HelpCenter'),
-            iconColor: '#4CAF50',
-          })}
-        </View>
-
-        {/* Danger Zone */}
-        <View style={tw`px-4 mt-6 mb-4`}>
+        {/* ── Header ── */}
+        <View style={styles.header}>
           <TouchableOpacity
-            style={tw`bg-gray-100 border border-gray-300 rounded-xl py-4 items-center mb-3`}
-            onPress={handleResetSettings}
-            activeOpacity={0.7}
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.75}
           >
-            <View style={tw`flex-row items-center`}>
-              <Icon name="refresh" size={20} color="#666" />
-              <Text style={tw`text-base font-semibold text-gray-700 ml-2`}>
-                Reset Settings to Default
-              </Text>
-            </View>
+            <Feather name="arrow-left" size={19} color="#111" />
           </TouchableOpacity>
+          <Text style={styles.pageTitle}>Settings</Text>
+        </View>
 
-          <View style={tw`bg-red-50 rounded-xl p-4 border border-red-200`}>
-            <View style={tw`flex-row items-start`}>
-              <Icon name="warning" size={20} color="#EF4444" />
-              <View style={tw`flex-1 ml-2`}>
-                <Text style={tw`text-sm font-semibold text-red-700 mb-1`}>
-                  Danger Zone
-                </Text>
-                <Text style={tw`text-xs text-red-600`}>
-                  Some actions here cannot be undone. Please proceed with caution.
-                </Text>
-              </View>
-            </View>
+        {/* ── Notifications ── */}
+        <View style={styles.section}>
+          <SectionLabel title="Notifications" />
+          <MenuCard>
+            <ToggleItem
+              icon="bell"
+              label="Push Notifications"
+              subtitle="Alerts on your device"
+              value={pushNotifications}
+              onToggle={setPushNotifications}
+            />
+            <Divider />
+            <ToggleItem
+              icon="mail"
+              label="Email Notifications"
+              subtitle="Updates to your inbox"
+              value={emailNotifications}
+              onToggle={setEmailNotifications}
+            />
+            <Divider />
+            <ToggleItem
+              icon="message-square"
+              label="SMS Notifications"
+              subtitle="Text message updates"
+              value={smsNotifications}
+              onToggle={setSmsNotifications}
+            />
+            <Divider />
+            <ToggleItem
+              icon="shopping-cart"
+              label="Order Updates"
+              subtitle="Status of your orders"
+              value={orderUpdates}
+              onToggle={setOrderUpdates}
+            />
+            <Divider />
+            <ToggleItem
+              icon="tag"
+              label="Promotional Offers"
+              subtitle="Deals & discounts"
+              value={promotionalOffers}
+              onToggle={setPromotionalOffers}
+            />
+          </MenuCard>
+        </View>
+
+        {/* ── Preferences ── */}
+        <View style={styles.section}>
+          <SectionLabel title="Preferences" />
+          <MenuCard>
+            <ToggleItem
+              icon="navigation"
+              label="Location Services"
+              subtitle="For faster delivery"
+              value={locationServices}
+              onToggle={setLocationServices}
+            />
+            <Divider />
+            <ToggleItem
+              icon="moon"
+              label="Dark Mode"
+              subtitle="Coming soon"
+              value={darkMode}
+              onToggle={setDarkMode}
+            />
+            <Divider />
+            <ToggleItem
+              icon="play-circle"
+              label="Auto-Play Videos"
+              subtitle="Play videos automatically"
+              value={autoPlayVideos}
+              onToggle={setAutoPlayVideos}
+            />
+            <Divider />
+            <MenuItem
+              icon="globe"
+              label="Language"
+              rightText="English"
+              onPress={() => Alert.alert('Language', 'Language selection coming soon')}
+            />
+            <Divider />
+            <MenuItem
+              icon="dollar-sign"
+              label="Currency"
+              rightText="INR (₹)"
+              onPress={() => Alert.alert('Currency', 'Currency selection coming soon')}
+            />
+          </MenuCard>
+        </View>
+
+        {/* ── Security & Privacy ── */}
+        <View style={styles.section}>
+          <SectionLabel title="Security & Privacy" />
+          <MenuCard>
+            <ToggleItem
+              icon="cpu"
+              label="Biometric Auth"
+              subtitle="Fingerprint or face ID"
+              value={biometricAuth}
+              onToggle={setBiometricAuth}
+            />
+            <Divider />
+            <MenuItem
+              icon="lock"
+              label="Change Password"
+              onPress={() => navigation.navigate('ChangePassword')}
+            />
+            <Divider />
+            <MenuItem
+              icon="shield"
+              label="Privacy Policy"
+              onPress={() => navigation.navigate('Privacy')}
+            />
+            <Divider />
+            <MenuItem
+              icon="file-text"
+              label="Terms & Conditions"
+              onPress={() => navigation.navigate('Terms')}
+            />
+          </MenuCard>
+        </View>
+
+        {/* ── Data & Storage ── */}
+        <View style={styles.section}>
+          <SectionLabel title="Data & Storage" />
+          <MenuCard>
+            <MenuItem
+              icon="trash-2"
+              label="Clear Cache"
+              subtitle="Free up storage space"
+              onPress={handleClearCache}
+            />
+            <Divider />
+            <MenuItem
+              icon="download"
+              label="Download Quality"
+              rightText="High"
+              onPress={() => Alert.alert('Download Quality', 'Quality settings coming soon')}
+            />
+            <Divider />
+            <ToggleItem
+              icon="wifi"
+              label="Data Saver"
+              subtitle="Reduce data usage"
+              value={dataSaver}
+              onToggle={setDataSaver}
+            />
+          </MenuCard>
+        </View>
+
+        {/* ── About ── */}
+        <View style={styles.section}>
+          <SectionLabel title="About" />
+          <MenuCard>
+            <MenuItem
+              icon="info"
+              label="App Version"
+              rightText="1.0.0"
+              showChevron={false}
+            />
+            <Divider />
+            <MenuItem
+              icon="star"
+              label="Rate Us"
+              onPress={() => Alert.alert('Rate Us', 'Thank you for your support!')}
+            />
+            <Divider />
+            <MenuItem
+              icon="share-2"
+              label="Share App"
+              onPress={() => Alert.alert('Share', 'Share feature coming soon')}
+            />
+            <Divider />
+            <MenuItem
+              icon="help-circle"
+              label="Help & Support"
+              onPress={() => navigation.navigate('HelpCenter')}
+            />
+          </MenuCard>
+        </View>
+
+        {/* ── Reset Button ── */}
+        <TouchableOpacity
+          style={styles.resetBtn}
+          onPress={handleResetSettings}
+          activeOpacity={0.75}
+        >
+          <Feather name="refresh-cw" size={16} color="#555" />
+          <Text style={styles.resetText}>Reset settings to default</Text>
+        </TouchableOpacity>
+
+        {/* ── Danger Zone ── */}
+        <View style={styles.dangerCard}>
+          <Feather name="alert-triangle" size={17} color="#E53935" style={{ marginTop: 1 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.dangerTitle}>Danger zone</Text>
+            <Text style={styles.dangerSub}>
+              Some actions here cannot be undone. Please proceed with caution.
+            </Text>
           </View>
         </View>
 
-        {/* Bottom Spacing */}
-        <View style={tw`h-6`} />
+        <View style={{ height: 32 }} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F2F0EF',
+  },
+  scrollContent: {
+    paddingBottom: 16,
+  },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 20,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#fff',
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageTitle: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#111',
+    letterSpacing: -0.8,
+  },
+
+  // Section
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 22,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#B0B8C1',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+    paddingLeft: 2,
+  },
+
+  // Menu
+  menuCard: {
+    backgroundColor: '#fff',
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 13,
+  },
+  menuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  menuText: {
+    flex: 1,
+  },
+  menuLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111',
+    letterSpacing: -0.1,
+  },
+  menuSub: {
+    fontSize: 11,
+    color: '#A0AAB4',
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  menuRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  rightText: {
+    fontSize: 12,
+    color: '#A0AAB4',
+    fontWeight: '600',
+  },
+  divider: {
+    height: 0.5,
+    backgroundColor: '#F4F4F4',
+    marginLeft: 65,
+  },
+
+  // Reset
+  resetBtn: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingVertical: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+  resetText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#555',
+  },
+
+  // Danger
+  dangerCard: {
+    marginHorizontal: 20,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FFE8E8',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  dangerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#E53935',
+    marginBottom: 3,
+  },
+  dangerSub: {
+    fontSize: 11,
+    color: '#EF9A9A',
+    fontWeight: '500',
+    lineHeight: 16,
+  },
+});
 
 export default SettingsScreen;

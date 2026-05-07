@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,68 +10,107 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
+  StatusBar,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import Icon from 'react-native-vector-icons/Feather';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { signupUser, clearError } from '../../store/slices/authSlice';
 import { setUserData } from '../../store/slices/userSlice';
 import notificationService from '../../services/notificationService';
 
-// ─── Role → screen mapping ───────────────────────────────────────────────────
-// FIX: After signup, navigate to the correct home screen for the role.
 const ROLE_HOME_SCREEN = {
   admin:  'AdminHome',
   driver: 'DriverHome',
   user:   'MainApp',
 };
 
-// ─── Role Option Card ────────────────────────────────────────────────────────
-const RoleCard = ({ role, selectedRole, onSelect }) => {
-  const isSelected = selectedRole === role.id;
+// ─── Animated Input Field ─────────────────────────────────────────────────────
+const InputField = ({ label, iconName, value, onChangeText, placeholder, secureTextEntry, keyboardType, autoCapitalize, maxLength, editable, rightElement, labelColor, inputBg }) => {
+  const borderAnim = useRef(new Animated.Value(0)).current;
+
+  const onFocus = () =>
+    Animated.timing(borderAnim, { toValue: 1, duration: 160, useNativeDriver: false }).start();
+  const onBlur = () =>
+    Animated.timing(borderAnim, { toValue: 0, duration: 160, useNativeDriver: false }).start();
+
+  const borderColor = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [inputBg || '#fff', '#4CAF50'],
+  });
+
   return (
-    <TouchableOpacity
-      style={[styles.roleCard, isSelected && styles.roleCardSelected]}
-      onPress={() => onSelect(role.id)}
-      activeOpacity={0.8}
-    >
-      <Text style={styles.roleEmoji}>{role.emoji}</Text>
-      <Text style={[styles.roleTitle, isSelected && styles.roleTitleSelected]}>
-        {role.title}
-      </Text>
-      <Text style={[styles.roleDesc, isSelected && styles.roleDescSelected]}>
-        {role.desc}
-      </Text>
-      <View style={[styles.roleDot, isSelected && styles.roleDotSelected]} />
-    </TouchableOpacity>
+    <View style={styles.fieldWrapper}>
+      <Text style={[styles.fieldLabel, labelColor && { color: labelColor }]}>{label}</Text>
+      <Animated.View style={[styles.inputBox, { borderColor, backgroundColor: inputBg || '#fff' }]}>
+        <Icon name={iconName} size={16} color="#C7C7CC" style={styles.inputIcon} />
+        <TextInput
+          style={styles.textInput}
+          placeholder={placeholder}
+          placeholderTextColor="#C7C7CC"
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={secureTextEntry}
+          keyboardType={keyboardType || 'default'}
+          autoCapitalize={autoCapitalize || 'none'}
+          autoCorrect={false}
+          maxLength={maxLength}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          editable={editable !== false}
+        />
+        {rightElement}
+      </Animated.View>
+    </View>
   );
 };
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// ─── Role Card ────────────────────────────────────────────────────────────────
+const RoleCard = ({ role, selected, onSelect, disabled }) => (
+  <TouchableOpacity
+    style={[styles.roleCard, selected && styles.roleCardSelected]}
+    onPress={() => onSelect(role.id)}
+    activeOpacity={0.8}
+    disabled={disabled}
+  >
+    <View style={[styles.roleIconWrap, selected && styles.roleIconWrapSelected]}>
+      <Icon name={role.icon} size={20} color={selected ? '#4CAF50' : '#8E8E93'} />
+    </View>
+    <Text style={[styles.roleTitle, selected && styles.roleTitleSelected]}>{role.title}</Text>
+    <Text style={[styles.roleDesc, selected && styles.roleDescSelected]}>{role.desc}</Text>
+    <View style={[styles.roleDot, selected && styles.roleDotSelected]} />
+  </TouchableOpacity>
+);
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 const SignupScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { loading, error } = useSelector((state) => state.auth);
 
-  const [selectedRole, setSelectedRole] = useState('user');
-  const [name, setName]                           = useState('');
-  const [email, setEmail]                         = useState('');
-  const [phone, setPhone]                         = useState('');
-  const [password, setPassword]                   = useState('');
-  const [confirmPassword, setConfirmPassword]     = useState('');
-  const [showPassword, setShowPassword]           = useState(false);
+  const [selectedRole, setSelectedRole]               = useState('user');
+  const [name, setName]                               = useState('');
+  const [email, setEmail]                             = useState('');
+  const [phone, setPhone]                             = useState('');
+  const [password, setPassword]                       = useState('');
+  const [confirmPassword, setConfirmPassword]         = useState('');
+  const [showPassword, setShowPassword]               = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Driver-specific fields
-  const [vehicleType, setVehicleType]       = useState('bike');
-  const [vehicleNumber, setVehicleNumber]   = useState('');
-  const [licenseNumber, setLicenseNumber]   = useState('');
+  // Driver fields
+  const [vehicleType, setVehicleType]     = useState('bike');
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
 
-  // Focus states
-  const [nameFocused, setNameFocused]                     = useState(false);
-  const [emailFocused, setEmailFocused]                   = useState(false);
-  const [phoneFocused, setPhoneFocused]                   = useState(false);
-  const [passwordFocused, setPasswordFocused]             = useState(false);
-  const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
-  const [vehicleNumberFocused, setVehicleNumberFocused]   = useState(false);
-  const [licenseNumberFocused, setLicenseNumberFocused]   = useState(false);
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 420, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 420, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   useEffect(() => {
     if (error) {
@@ -81,22 +120,24 @@ const SignupScreen = ({ navigation }) => {
   }, [error, dispatch]);
 
   const roles = [
-    { id: 'user',   emoji: '🛒', title: 'Customer',        desc: 'Shop & order groceries'    },
-    { id: 'driver', emoji: '🚗', title: 'Delivery Rider',  desc: 'Deliver & earn money'      },
+    { id: 'user',   icon: 'shopping-cart', title: 'Customer',       desc: 'Shop & order groceries' },
+    { id: 'driver', icon: 'truck',         title: 'Delivery Rider',  desc: 'Deliver & earn money'   },
   ];
 
   const vehicleTypes = [
-    { id: 'bike',    label: '🏍️ Bike'   },
-    { id: 'scooter', label: '🛵 Scooter' },
-    { id: 'car',     label: '🚗 Car'     },
-    { id: 'van',     label: '🚐 Van'     },
+    { id: 'bike',    label: 'Bike',    icon: 'wind'      },
+    { id: 'scooter', label: 'Scooter', icon: 'wind'      },
+    { id: 'car',     label: 'Car',     icon: 'navigation' },
+    { id: 'van',     label: 'Van',     icon: 'truck'     },
   ];
 
   const validateEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
   const validatePhone = (val) => /^[0-9]{10}$/.test(val);
 
+  const passwordValid   = password.length >= 6;
+  const passwordsMatch  = password.length > 0 && password === confirmPassword;
+
   const handleSignup = async () => {
-    // ── Validation ────────────────────────────────────────────────────────────
     if (!name || !email || !phone || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -139,10 +180,6 @@ const SignupScreen = ({ navigation }) => {
         fcmToken = await notificationService.getToken();
       }
 
-      // FIX: Driver fields (vehicleType, vehicleNumber, licenseNumber) are now
-      // passed to signupUser which forwards them as the 7th argument to
-      // authService.signup(), where they are spread into the request body.
-      // Previously these fields were lost before reaching the API.
       const result = await dispatch(signupUser({
         name:          name.trim(),
         email:         email.trim().toLowerCase(),
@@ -155,335 +192,286 @@ const SignupScreen = ({ navigation }) => {
         licenseNumber: licenseNumber.trim().toUpperCase(),
       })).unwrap();
 
-      if (result.user) {
-        dispatch(setUserData(result.user));
-      }
+      if (result.user) dispatch(setUserData(result.user));
 
-      // FIX: Navigate to the correct home screen based on the user's role.
       const role       = result.user?.role ?? selectedRole;
       const homeScreen = ROLE_HOME_SCREEN[role] ?? 'MainApp';
 
-      const successTitle = role === 'driver' ? 'Welcome, Rider! 🚗' : 'Welcome! 🎉';
+      const successTitle = role === 'driver' ? 'Welcome, Rider!' : 'Welcome!';
       const successMsg   = role === 'driver'
         ? 'Driver account created! Go online to start accepting deliveries.'
-        : 'Account created!\n\nCheck your notifications for a special welcome offer!';
+        : 'Account created! Check your notifications for a special welcome offer!';
 
       Alert.alert(successTitle, successMsg, [
-        {
-          text: "Let's Go!",
-          onPress: () => navigation.replace(homeScreen),
-        },
+        { text: "Let's Go!", onPress: () => navigation.replace(homeScreen) },
       ]);
-
     } catch (err) {
-      // Errors handled by the useEffect above via Redux error state.
       console.error('Signup error:', err);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <StatusBar barStyle="dark-content" backgroundColor="#F2F2F7" />
+
       <ScrollView
-        contentContainerStyle={styles.scrollContainer}
+        contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.headerContainer}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-            disabled={loading}
-          >
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-          <View style={styles.logoContainer}>
-            <View style={styles.logo}>
-              <Text style={styles.logoIcon}>
-                {selectedRole === 'driver' ? '🚗' : '🛒'}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Choose how you want to join us</Text>
-        </View>
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
 
-        <View style={styles.formContainer}>
-
-          {/* ── Role Selector ──────────────────────────────────────── */}
-          <Text style={styles.sectionLabel}>I want to join as</Text>
-          <View style={styles.roleRow}>
-            {roles.map((role) => (
-              <RoleCard
-                key={role.id}
-                role={role}
-                selectedRole={selectedRole}
-                onSelect={setSelectedRole}
-              />
-            ))}
-          </View>
-
-          {/* ── Common Fields ──────────────────────────────────────── */}
-          <Text style={styles.sectionLabel}>Personal Details</Text>
-
-          {/* Name */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Full Name</Text>
-            <View style={[styles.inputContainer, nameFocused && styles.inputContainerFocused]}>
-              <Text style={styles.inputIcon}>👤</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your full name"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                onFocus={() => setNameFocused(true)}
-                onBlur={() => setNameFocused(false)}
-                editable={!loading}
-              />
-            </View>
-          </View>
-
-          {/* Email */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Email Address</Text>
-            <View style={[styles.inputContainer, emailFocused && styles.inputContainerFocused]}>
-              <Text style={styles.inputIcon}>✉️</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
-                editable={!loading}
-              />
-            </View>
-          </View>
-
-          {/* Phone */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Phone Number</Text>
-            <View style={[styles.inputContainer, phoneFocused && styles.inputContainerFocused]}>
-              <Text style={styles.inputIcon}>📱</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter 10-digit phone number"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                maxLength={10}
-                onFocus={() => setPhoneFocused(true)}
-                onBlur={() => setPhoneFocused(false)}
-                editable={!loading}
-              />
-            </View>
-          </View>
-
-          {/* Password */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Password</Text>
-            <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
-              <Text style={styles.inputIcon}>🔒</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Create a password (min. 6 chars)"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
-                editable={!loading}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
-                disabled={loading}
-              >
-                <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Confirm Password */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Confirm Password</Text>
-            <View style={[styles.inputContainer, confirmPasswordFocused && styles.inputContainerFocused]}>
-              <Text style={styles.inputIcon}>🔐</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry={!showConfirmPassword}
-                onFocus={() => setConfirmPasswordFocused(true)}
-                onBlur={() => setConfirmPasswordFocused(false)}
-                editable={!loading}
-              />
-              <TouchableOpacity
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={styles.eyeButton}
-                disabled={loading}
-              >
-                <Text style={styles.eyeIcon}>{showConfirmPassword ? '👁️' : '👁️‍🗨️'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Password strength hints */}
-          <View style={styles.requirementsContainer}>
-            <View style={styles.requirementItem}>
-              <Text style={password.length >= 6 ? styles.checkValid : styles.checkInvalid}>
-                {password.length >= 6 ? '✓' : '○'}
-              </Text>
-              <Text style={styles.requirementText}>At least 6 characters</Text>
-            </View>
-            <View style={styles.requirementItem}>
-              <Text style={password && password === confirmPassword ? styles.checkValid : styles.checkInvalid}>
-                {password && password === confirmPassword ? '✓' : '○'}
-              </Text>
-              <Text style={styles.requirementText}>Passwords match</Text>
-            </View>
-          </View>
-
-          {/* ── Driver-Only Fields ─────────────────────────────────── */}
-          {selectedRole === 'driver' && (
-            <View style={styles.driverSection}>
-              <View style={styles.driverSectionHeader}>
-                <Text style={styles.driverSectionTitle}>🚗 Vehicle Details</Text>
-                <Text style={styles.driverSectionSubtitle}>Required for delivery approval</Text>
+          {/* ── Hero ──────────────────────────────────────────────────── */}
+          <View style={styles.hero}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+              disabled={loading}
+            >
+              <Icon name="arrow-left" size={20} color="#000" />
+            </TouchableOpacity>
+            <View style={styles.heroCenter}>
+              <View style={styles.logoWrap}>
+                <Icon
+                  name={selectedRole === 'driver' ? 'truck' : 'shopping-bag'}
+                  size={26}
+                  color="#fff"
+                />
               </View>
+              <Text style={styles.heroTitle}>Create account</Text>
+              <Text style={styles.heroSub}>Choose how you want to join us</Text>
+            </View>
+          </View>
 
-              {/* Vehicle Type Selector */}
-              <Text style={styles.label}>Vehicle Type</Text>
-              <View style={styles.vehicleTypeRow}>
-                {vehicleTypes.map((v) => (
-                  <TouchableOpacity
-                    key={v.id}
-                    style={[
-                      styles.vehicleChip,
-                      vehicleType === v.id && styles.vehicleChipSelected,
-                    ]}
-                    onPress={() => setVehicleType(v.id)}
-                    disabled={loading}
-                  >
-                    <Text style={[
-                      styles.vehicleChipText,
-                      vehicleType === v.id && styles.vehicleChipTextSelected,
-                    ]}>
-                      {v.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+          {/* ── Body ──────────────────────────────────────────────────── */}
+          <View style={styles.body}>
+
+            {/* Role selector */}
+            <Text style={styles.sectionLabel}>I want to join as</Text>
+            <View style={styles.roleRow}>
+              {roles.map((role) => (
+                <RoleCard
+                  key={role.id}
+                  role={role}
+                  selected={selectedRole === role.id}
+                  onSelect={setSelectedRole}
+                  disabled={loading}
+                />
+              ))}
+            </View>
+
+            {/* Personal details */}
+            <Text style={styles.sectionLabel}>Personal details</Text>
+
+            <InputField
+              label="Full name"
+              iconName="user"
+              value={name}
+              onChangeText={setName}
+              placeholder="Enter your full name"
+              autoCapitalize="words"
+              editable={!loading}
+            />
+            <InputField
+              label="Email address"
+              iconName="mail"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              editable={!loading}
+            />
+            <InputField
+              label="Phone number"
+              iconName="phone"
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="10-digit phone number"
+              keyboardType="phone-pad"
+              maxLength={10}
+              editable={!loading}
+            />
+            <InputField
+              label="Password"
+              iconName="lock"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Min. 6 characters"
+              secureTextEntry={!showPassword}
+              editable={!loading}
+              rightElement={
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  disabled={loading}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icon name={showPassword ? 'eye' : 'eye-off'} size={16} color="#C7C7CC" />
+                </TouchableOpacity>
+              }
+            />
+            <InputField
+              label="Confirm password"
+              iconName="lock"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Re-enter your password"
+              secureTextEntry={!showConfirmPassword}
+              editable={!loading}
+              rightElement={
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={loading}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icon name={showConfirmPassword ? 'eye' : 'eye-off'} size={16} color="#C7C7CC" />
+                </TouchableOpacity>
+              }
+            />
+
+            {/* Password hints */}
+            <View style={styles.hintsBox}>
+              <View style={styles.hintRow}>
+                <View style={[styles.hintDot, passwordValid && styles.hintDotValid]} />
+                <Text style={[styles.hintText, passwordValid && styles.hintTextValid]}>
+                  At least 6 characters
+                </Text>
               </View>
-
-              {/* Vehicle Number */}
-              <View style={styles.inputWrapper}>
-                <Text style={styles.label}>Vehicle Number</Text>
-                <View style={[styles.inputContainer, vehicleNumberFocused && styles.inputContainerFocused]}>
-                  <Text style={styles.inputIcon}>🔢</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g. RJ14 AB 1234"
-                    value={vehicleNumber}
-                    onChangeText={setVehicleNumber}
-                    autoCapitalize="characters"
-                    onFocus={() => setVehicleNumberFocused(true)}
-                    onBlur={() => setVehicleNumberFocused(false)}
-                    editable={!loading}
-                  />
-                </View>
-              </View>
-
-              {/* License Number */}
-              <View style={styles.inputWrapper}>
-                <Text style={styles.label}>Driving License Number</Text>
-                <View style={[styles.inputContainer, licenseNumberFocused && styles.inputContainerFocused]}>
-                  <Text style={styles.inputIcon}>📋</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g. RJ-1420200012345"
-                    value={licenseNumber}
-                    onChangeText={setLicenseNumber}
-                    autoCapitalize="characters"
-                    onFocus={() => setLicenseNumberFocused(true)}
-                    onBlur={() => setLicenseNumberFocused(false)}
-                    editable={!loading}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.driverNote}>
-                <Text style={styles.driverNoteText}>
-                  ℹ️ Driver accounts require admin approval before you can start accepting deliveries.
+              <View style={styles.hintRow}>
+                <View style={[styles.hintDot, passwordsMatch && styles.hintDotValid]} />
+                <Text style={[styles.hintText, passwordsMatch && styles.hintTextValid]}>
+                  Passwords match
                 </Text>
               </View>
             </View>
-          )}
 
-          {/* Terms */}
-          <View style={styles.termsContainer}>
-            <Text style={styles.termsText}>
-              By signing up, you agree to our{' '}
-              <Text style={styles.termsLink}>Terms & Conditions</Text> and{' '}
-              <Text style={styles.termsLink}>Privacy Policy</Text>
-            </Text>
-          </View>
+            {/* Driver-only section */}
+            {selectedRole === 'driver' && (
+              <View style={styles.driverCard}>
+                <View style={styles.driverHeader}>
+                  <Icon name="truck" size={18} color="#2563EB" />
+                  <View>
+                    <Text style={styles.driverHeaderTitle}>Vehicle details</Text>
+                    <Text style={styles.driverHeaderSub}>Required for delivery approval</Text>
+                  </View>
+                </View>
 
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.signupButton, loading && styles.disabledButton]}
-            onPress={handleSignup}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <ActivityIndicator color="#fff" />
-                <Text style={[styles.signupButtonText, { marginLeft: 10 }]}>
-                  Creating Account...
-                </Text>
+                {/* Vehicle type chips */}
+                <View style={styles.vehicleChips}>
+                  {vehicleTypes.map((v) => (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={[styles.vehicleChip, vehicleType === v.id && styles.vehicleChipSelected]}
+                      onPress={() => setVehicleType(v.id)}
+                      disabled={loading}
+                      activeOpacity={0.75}
+                    >
+                      <Icon
+                        name={v.icon}
+                        size={13}
+                        color={vehicleType === v.id ? '#fff' : '#2563EB'}
+                      />
+                      <Text style={[styles.vehicleChipText, vehicleType === v.id && styles.vehicleChipTextSelected]}>
+                        {v.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <InputField
+                  label="Vehicle number"
+                  iconName="credit-card"
+                  value={vehicleNumber}
+                  onChangeText={setVehicleNumber}
+                  placeholder="e.g. RJ14 AB 1234"
+                  autoCapitalize="characters"
+                  editable={!loading}
+                  inputBg="#fff"
+                  labelColor="#1E40AF"
+                />
+                <InputField
+                  label="Driving license number"
+                  iconName="file-text"
+                  value={licenseNumber}
+                  onChangeText={setLicenseNumber}
+                  placeholder="e.g. RJ-1420200012345"
+                  autoCapitalize="characters"
+                  editable={!loading}
+                  inputBg="#fff"
+                  labelColor="#1E40AF"
+                />
+
+                <View style={styles.driverNote}>
+                  <Icon name="info" size={14} color="#1D4ED8" style={{ marginTop: 1 }} />
+                  <Text style={styles.driverNoteText}>
+                    Driver accounts require admin approval before you can start accepting deliveries.
+                  </Text>
+                </View>
               </View>
-            ) : (
-              <Text style={styles.signupButtonText}>
-                {selectedRole === 'driver' ? '🚗 Register as Rider' : '🛒 Create Account'}
-              </Text>
             )}
-          </TouchableOpacity>
 
-          {/* Divider */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.divider} />
-          </View>
+            {/* Terms */}
+            <View style={styles.termsWrap}>
+              <Text style={styles.termsText}>
+                By signing up, you agree to our{' '}
+                <Text style={styles.termsLink}>Terms & Conditions</Text>
+                {' '}and{' '}
+                <Text style={styles.termsLink}>Privacy Policy</Text>
+              </Text>
+            </View>
 
-          {/* Social Buttons */}
-          <View style={styles.socialContainer}>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7} disabled={loading}>
-              <Text style={styles.socialIcon}>📘</Text>
-              <Text style={styles.socialText}>Facebook</Text>
+            {/* Sign Up button */}
+            <TouchableOpacity
+              style={[styles.signUpBtn, loading && styles.signUpBtnDisabled]}
+              onPress={handleSignup}
+              disabled={loading}
+              activeOpacity={0.82}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Text style={styles.signUpBtnText}>
+                    {selectedRole === 'driver' ? 'Register as Rider' : 'Create Account'}
+                  </Text>
+                  <View style={styles.arrowChip}>
+                    <Icon name="arrow-right" size={16} color="#fff" />
+                  </View>
+                </>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7} disabled={loading}>
-              <Text style={styles.socialIcon}>🔴</Text>
-              <Text style={styles.socialText}>Google</Text>
-            </TouchableOpacity>
-          </View>
 
-          {/* Login Link */}
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
-              <Text style={styles.loginLink}>Sign In</Text>
-            </TouchableOpacity>
-          </View>
+            {/* OR divider */}
+            <View style={styles.orRow}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>or continue with</Text>
+              <View style={styles.orLine} />
+            </View>
 
-        </View>
+            {/* Social buttons */}
+            <View style={styles.socialRow}>
+              <TouchableOpacity style={styles.socialBtn} activeOpacity={0.75} disabled={loading}>
+                <MaterialCommunityIcons name="facebook" size={20} color="#1877F2" />
+                <Text style={styles.socialBtnText}>Facebook</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.socialBtn} activeOpacity={0.75} disabled={loading}>
+                <MaterialCommunityIcons name="google" size={18} color="#EA4335" />
+                <Text style={styles.socialBtnText}>Google</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Sign in link */}
+            <View style={styles.signinRow}>
+              <Text style={styles.signinMuted}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
+                <Text style={styles.signinLink}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -491,145 +479,244 @@ const SignupScreen = ({ navigation }) => {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  scrollContainer: { flexGrow: 1 },
+  root: { flex: 1, backgroundColor: '#F2F2F7' },
+  scroll: { flexGrow: 1, paddingBottom: 40 },
 
-  // Header
-  headerContainer: {
-    paddingTop: 50, paddingBottom: 30, paddingHorizontal: 20,
-    backgroundColor: '#f8f9fa',
-    borderBottomLeftRadius: 30, borderBottomRightRadius: 30,
+  // Hero
+  hero: {
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    paddingTop: 52,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
-  backButton: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  backIcon: { fontSize: 24, color: '#2c3e50' },
-  logoContainer: { alignItems: 'center', marginBottom: 16 },
-  logo: {
-    width: 70, height: 70, borderRadius: 35,
-    backgroundColor: '#4CAF50', justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+  heroCenter: { alignItems: 'center' },
+  logoWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  logoIcon: { fontSize: 35 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#2c3e50', textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontSize: 15, color: '#7f8c8d', textAlign: 'center' },
+  heroTitle: { fontSize: 22, fontWeight: '700', color: '#000', marginBottom: 4 },
+  heroSub: { fontSize: 13, color: '#8E8E93' },
 
-  // Form
-  formContainer: { padding: 24 },
+  // Body
+  body: { paddingHorizontal: 16 },
+
   sectionLabel: {
-    fontSize: 13, fontWeight: '700', color: '#94a3b8',
-    letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12, marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#8E8E93',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+    marginTop: 4,
   },
 
-  // Role Cards
-  roleRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  // Role cards
+  roleRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   roleCard: {
-    flex: 1, borderWidth: 2, borderColor: '#e0e0e0',
-    borderRadius: 16, padding: 16, alignItems: 'center',
-    backgroundColor: '#f8f9fa', position: 'relative',
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1.5,
+    borderColor: '#E5E5EA',
+    position: 'relative',
   },
-  roleCardSelected: { borderColor: '#4CAF50', backgroundColor: '#f0fdf4' },
-  roleEmoji: { fontSize: 28, marginBottom: 8 },
-  roleTitle: { fontSize: 14, fontWeight: '700', color: '#2c3e50', marginBottom: 4 },
-  roleTitleSelected: { color: '#16a34a' },
-  roleDesc: { fontSize: 11, color: '#94a3b8', textAlign: 'center' },
+  roleCardSelected: { borderColor: '#4CAF50', backgroundColor: '#F0FDF4' },
+  roleIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  roleIconWrapSelected: { backgroundColor: '#E8F5E9' },
+  roleTitle: { fontSize: 13, fontWeight: '700', color: '#000' },
+  roleTitleSelected: { color: '#2E7D32' },
+  roleDesc: { fontSize: 11, color: '#8E8E93', textAlign: 'center' },
   roleDescSelected: { color: '#4CAF50' },
   roleDot: {
-    position: 'absolute', top: 10, right: 10,
-    width: 10, height: 10, borderRadius: 5,
-    borderWidth: 2, borderColor: '#e0e0e0', backgroundColor: 'transparent',
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#D1D1D6',
+    backgroundColor: 'transparent',
   },
   roleDotSelected: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
 
-  // Inputs
-  inputWrapper: { marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: '600', color: '#2c3e50', marginBottom: 8 },
-  inputContainer: {
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 2, borderColor: '#e0e0e0',
-    borderRadius: 12, backgroundColor: '#f8f9fa',
-    paddingHorizontal: 16, height: 54,
+  // Input fields
+  fieldWrapper: { marginBottom: 12 },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3C3C43',
+    marginBottom: 6,
+    letterSpacing: 0.1,
   },
-  inputContainerFocused: { borderColor: '#4CAF50', backgroundColor: '#fff' },
-  inputIcon: { fontSize: 20, marginRight: 12 },
-  input: { flex: 1, fontSize: 16, color: '#2c3e50' },
-  eyeButton: { padding: 8 },
-  eyeIcon: { fontSize: 20 },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 48,
+    borderWidth: 1.5,
+  },
+  inputIcon: { marginRight: 8 },
+  textInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#000',
+    paddingVertical: 0,
+  },
 
   // Password hints
-  requirementsContainer: {
-    backgroundColor: '#f0f4f8', borderRadius: 12,
-    padding: 12, marginBottom: 16, gap: 6,
-  },
-  requirementItem: { flexDirection: 'row', alignItems: 'center' },
-  checkValid: { fontSize: 15, color: '#4CAF50', marginRight: 8, fontWeight: 'bold' },
-  checkInvalid: { fontSize: 15, color: '#bdbdbd', marginRight: 8 },
-  requirementText: { fontSize: 13, color: '#546e7a' },
-
-  // Driver section
-  driverSection: {
-    backgroundColor: '#eff6ff',
-    borderRadius: 16, padding: 16, marginBottom: 16,
-    borderWidth: 1.5, borderColor: '#bfdbfe',
-  },
-  driverSectionHeader: { marginBottom: 16 },
-  driverSectionTitle: { fontSize: 15, fontWeight: '800', color: '#1e40af', marginBottom: 2 },
-  driverSectionSubtitle: { fontSize: 12, color: '#3b82f6' },
-  vehicleTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  vehicleChip: {
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20, borderWidth: 1.5, borderColor: '#bfdbfe',
+  hintsBox: {
     backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    gap: 6,
   },
-  vehicleChipSelected: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
-  vehicleChipText: { fontSize: 13, color: '#2563eb', fontWeight: '600' },
+  hintRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  hintDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#E5E5EA',
+  },
+  hintDotValid: { backgroundColor: '#4CAF50' },
+  hintText: { fontSize: 12, color: '#8E8E93' },
+  hintTextValid: { color: '#4CAF50', fontWeight: '600' },
+
+  // Driver card
+  driverCard: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    padding: 14,
+    marginBottom: 14,
+  },
+  driverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    marginBottom: 14,
+  },
+  driverHeaderTitle: { fontSize: 13, fontWeight: '700', color: '#1E40AF', marginBottom: 2 },
+  driverHeaderSub: { fontSize: 11, color: '#3B82F6' },
+
+  vehicleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  vehicleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  vehicleChipSelected: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
+  vehicleChipText: { fontSize: 12, fontWeight: '600', color: '#2563EB' },
   vehicleChipTextSelected: { color: '#fff' },
+
   driverNote: {
-    backgroundColor: '#dbeafe', borderRadius: 10,
-    padding: 12, marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+    backgroundColor: '#DBEAFE',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 4,
   },
-  driverNoteText: { fontSize: 12, color: '#1d4ed8', lineHeight: 18 },
+  driverNoteText: { flex: 1, fontSize: 11, color: '#1D4ED8', lineHeight: 17 },
 
   // Terms
-  termsContainer: { marginBottom: 20 },
-  termsText: { fontSize: 13, color: '#7f8c8d', textAlign: 'center', lineHeight: 20 },
+  termsWrap: { marginBottom: 16 },
+  termsText: { fontSize: 12, color: '#8E8E93', textAlign: 'center', lineHeight: 18 },
   termsLink: { color: '#4CAF50', fontWeight: '600' },
 
-  // Submit button
-  signupButton: {
-    backgroundColor: '#4CAF50', borderRadius: 12,
-    paddingVertical: 16, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 20,
-    shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+  // Sign Up button
+  signUpBtn: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 14,
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 22,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  disabledButton: { opacity: 0.6 },
-  signupButtonText: { color: '#fff', fontSize: 17, fontWeight: 'bold' },
+  signUpBtnDisabled: { opacity: 0.6 },
+  signUpBtnText: { fontSize: 16, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
+  arrowChip: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
-  // Divider
-  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
-  divider: { flex: 1, height: 1, backgroundColor: '#e0e0e0' },
-  dividerText: { marginHorizontal: 16, color: '#95a5a6', fontSize: 14, fontWeight: '600' },
+  // OR divider
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  orLine: { flex: 1, height: 0.5, backgroundColor: '#D1D1D6' },
+  orText: { fontSize: 12, color: '#8E8E93', fontWeight: '500' },
 
   // Social
-  socialContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, gap: 12 },
-  socialButton: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#e0e0e0', borderRadius: 12,
-    paddingVertical: 12, backgroundColor: '#fff',
+  socialRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  socialBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    height: 46,
   },
-  socialIcon: { fontSize: 20, marginRight: 8 },
-  socialText: { fontSize: 14, fontWeight: '600', color: '#2c3e50' },
+  socialBtnText: { fontSize: 13, fontWeight: '600', color: '#000' },
 
-  // Login link
-  loginContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingBottom: 20 },
-  loginText: { color: '#7f8c8d', fontSize: 15 },
-  loginLink: { color: '#4CAF50', fontSize: 15, fontWeight: 'bold' },
+  // Sign in link
+  signinRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  signinMuted: { fontSize: 14, color: '#8E8E93' },
+  signinLink: { fontSize: 14, fontWeight: '700', color: '#4CAF50' },
 });
 
 export default SignupScreen;

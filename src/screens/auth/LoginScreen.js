@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,37 +10,81 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Dimensions,
+  Animated,
+  StatusBar,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import Icon from 'react-native-vector-icons/Feather';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { loginUser, clearError } from '../../store/slices/authSlice';
 import { setUserData } from '../../store/slices/userSlice';
 
-const { width } = Dimensions.get('window');
-
-// ─── Admin Quick Login credentials (frontend dev helper only) ────────────────
 const ADMIN_EMAIL    = 'admin@gmail.com';
 const ADMIN_PASSWORD = '123456';
 
-// ─── Role → screen mapping ───────────────────────────────────────────────────
-// FIX: After a successful login the app must navigate to the correct home
-// screen based on the user's role. Previously nothing called navigation.replace()
-// so every user landed on the same screen regardless of role.
 const ROLE_HOME_SCREEN = {
   admin:  'AdminHome',
   driver: 'DriverHome',
   user:   'MainApp',
 };
 
+// ─── Animated Input Field ─────────────────────────────────────────────────────
+const InputField = ({ label, iconName, value, onChangeText, placeholder, secureTextEntry, keyboardType, editable, rightElement }) => {
+  const borderAnim = useRef(new Animated.Value(0)).current;
+
+  const onFocus = () =>
+    Animated.timing(borderAnim, { toValue: 1, duration: 160, useNativeDriver: false }).start();
+  const onBlur = () =>
+    Animated.timing(borderAnim, { toValue: 0, duration: 160, useNativeDriver: false }).start();
+
+  const borderColor = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#fff', '#4CAF50'],
+  });
+
+  return (
+    <View style={styles.fieldWrapper}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Animated.View style={[styles.inputBox, { borderColor }]}>
+        <Icon name={iconName} size={17} color="#C7C7CC" style={styles.inputIcon} />
+        <TextInput
+          style={styles.textInput}
+          placeholder={placeholder}
+          placeholderTextColor="#C7C7CC"
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={secureTextEntry}
+          keyboardType={keyboardType || 'default'}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          editable={editable !== false}
+        />
+        {rightElement}
+      </Animated.View>
+    </View>
+  );
+};
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 const LoginScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { loading, error } = useSelector((state) => state.auth);
 
-  const [email, setEmail]                       = useState('');
-  const [password, setPassword]                 = useState('');
-  const [showPassword, setShowPassword]         = useState(false);
-  const [emailFocused, setEmailFocused]         = useState(false);
-  const [passwordFocused, setPasswordFocused]   = useState(false);
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 420, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 420, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   useEffect(() => {
     if (error) {
@@ -51,7 +95,6 @@ const LoginScreen = ({ navigation }) => {
 
   const validateEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
 
-  // ── Quick-fill admin credentials ──────────────────────────────────────────
   const handleAdminQuickFill = () => {
     setEmail(ADMIN_EMAIL);
     setPassword(ADMIN_PASSWORD);
@@ -66,185 +109,169 @@ const LoginScreen = ({ navigation }) => {
       Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
-
     try {
       const result = await dispatch(loginUser({ email, password })).unwrap();
+      if (result.user) dispatch(setUserData(result.user));
 
-      if (result.user) {
-        dispatch(setUserData(result.user));
-      }
-
-      // FIX: Navigate to the correct screen based on the user's role.
-      // Use navigation.replace() so the user cannot navigate back to the
-      // login screen with the hardware/gesture back button.
       const role       = result.user?.role ?? 'user';
       const homeScreen = ROLE_HOME_SCREEN[role] ?? 'MainApp';
       const userName   = result.user?.name ?? 'User';
 
-      Alert.alert(
-        'Welcome back!',
-        `Signed in as ${userName}`,
-        [
-          {
-            text: "Let's Go!",
-            onPress: () => navigation.replace(homeScreen),
-          },
-        ]
-      );
+      Alert.alert('Welcome back!', `Signed in as ${userName}`, [
+        { text: "Let's Go!", onPress: () => navigation.replace(homeScreen) },
+      ]);
     } catch (err) {
-      // Errors are handled by the useEffect above via the Redux error state.
       console.error('Login error:', err);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <StatusBar barStyle="dark-content" backgroundColor="#F2F2F7" />
+
       <ScrollView
-        contentContainerStyle={styles.scrollContainer}
+        contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.headerContainer}>
-          <View style={styles.logoContainer}>
-            <View style={styles.logo}>
-              <Text style={styles.logoIcon}>🛒</Text>
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+
+          {/* ── Hero ──────────────────────────────────────────────────── */}
+          <View style={styles.hero}>
+            <View style={styles.logoWrap}>
+              <Icon name="shopping-bag" size={28} color="#fff" />
             </View>
+            <Text style={styles.heroTitle}>Welcome back</Text>
+            <Text style={styles.heroSub}>Sign in to continue shopping</Text>
           </View>
-          <Text style={styles.title}>Welcome Back!</Text>
-          <Text style={styles.subtitle}>Sign in to continue shopping</Text>
-        </View>
 
-        <View style={styles.formContainer}>
+          {/* ── Body ──────────────────────────────────────────────────── */}
+          <View style={styles.body}>
 
-          {/* ── Admin Quick Login Card ──────────────────────────────── */}
-          <TouchableOpacity
-            style={styles.adminCard}
-            onPress={handleAdminQuickFill}
-            activeOpacity={0.75}
-            disabled={loading}
-          >
-            <View style={styles.adminCardLeft}>
-              <View style={styles.adminBadge}>
-                <Text style={styles.adminBadgeText}>ADMIN</Text>
+            {/* Admin quick fill */}
+            <TouchableOpacity
+              style={styles.adminPill}
+              onPress={handleAdminQuickFill}
+              activeOpacity={0.75}
+              disabled={loading}
+            >
+              <View style={styles.adminLeft}>
+                <View style={styles.adminBadge}>
+                  <Text style={styles.adminBadgeText}>ADMIN</Text>
+                </View>
+                <View>
+                  <Text style={styles.adminTitle}>Quick Admin Login</Text>
+                  <Text style={styles.adminEmail}>{ADMIN_EMAIL}</Text>
+                </View>
               </View>
-              <View>
-                <Text style={styles.adminCardTitle}>Quick Admin Login</Text>
-                <Text style={styles.adminCardSub}>{ADMIN_EMAIL}</Text>
+              <View style={styles.adminBtn}>
+                <Text style={styles.adminBtnText}>Fill</Text>
+                <Icon name="arrow-right" size={13} color="#8E8E93" />
               </View>
-            </View>
-            <View style={styles.adminCardArrow}>
-              <Text style={styles.adminCardArrowText}>Fill →</Text>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          {/* Email Input */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Email Address</Text>
-            <View style={[styles.inputContainer, emailFocused && styles.inputContainerFocused]}>
-              <Text style={styles.inputIcon}>✉️</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
-                editable={!loading}
-              />
-              {email.length > 0 && (
-                <TouchableOpacity onPress={() => setEmail('')} disabled={loading}>
-                  <Text style={styles.clearBtn}>✕</Text>
+            {/* Email */}
+            <InputField
+              label="Email address"
+              iconName="mail"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              editable={!loading}
+              rightElement={
+                email.length > 0 ? (
+                  <TouchableOpacity
+                    onPress={() => setEmail('')}
+                    disabled={loading}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Icon name="x" size={15} color="#C7C7CC" />
+                  </TouchableOpacity>
+                ) : null
+              }
+            />
+
+            {/* Password */}
+            <InputField
+              label="Password"
+              iconName="lock"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter your password"
+              secureTextEntry={!showPassword}
+              editable={!loading}
+              rightElement={
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  disabled={loading}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icon name={showPassword ? 'eye' : 'eye-off'} size={17} color="#C7C7CC" />
                 </TouchableOpacity>
-              )}
-            </View>
-          </View>
+              }
+            />
 
-          {/* Password Input */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Password</Text>
-            <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
-              <Text style={styles.inputIcon}>🔒</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
-                editable={!loading}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
-                disabled={loading}
-              >
-                <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+            {/* Forgot password */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ForgotPassword')}
+              style={styles.forgotWrap}
+              disabled={loading}
+            >
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </TouchableOpacity>
+
+            {/* Sign In button */}
+            <TouchableOpacity
+              style={[styles.signInBtn, loading && styles.signInBtnDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.82}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Text style={styles.signInText}>Sign In</Text>
+                  <View style={styles.arrowChip}>
+                    <Icon name="arrow-right" size={16} color="#fff" />
+                  </View>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* OR divider */}
+            <View style={styles.orRow}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>or continue with</Text>
+              <View style={styles.orLine} />
+            </View>
+
+            {/* Social buttons */}
+            <View style={styles.socialRow}>
+              <TouchableOpacity style={styles.socialBtn} activeOpacity={0.75} disabled={loading}>
+                <MaterialCommunityIcons name="facebook" size={20} color="#1877F2" />
+                <Text style={styles.socialBtnText}>Facebook</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.socialBtn} activeOpacity={0.75} disabled={loading}>
+                <MaterialCommunityIcons name="google" size={18} color="#EA4335" />
+                <Text style={styles.socialBtnText}>Google</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Sign up link */}
+            <View style={styles.signupRow}>
+              <Text style={styles.signupMuted}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Signup')} disabled={loading}>
+                <Text style={styles.signupLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+
           </View>
-
-          {/* Forgot Password */}
-          <TouchableOpacity
-            onPress={() => navigation.navigate('ForgotPassword')}
-            style={styles.forgotPasswordContainer}
-            disabled={loading}
-          >
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.loginButton, loading && styles.disabledButton]}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <ActivityIndicator color="#fff" />
-                <Text style={[styles.loginButtonText, { marginLeft: 10 }]}>
-                  Signing In...
-                </Text>
-              </View>
-            ) : (
-              <Text style={styles.loginButtonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.divider} />
-          </View>
-
-          {/* Social Login */}
-          <View style={styles.socialContainer}>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7} disabled={loading}>
-              <Text style={styles.socialIcon}>📘</Text>
-              <Text style={styles.socialText}>Facebook</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7} disabled={loading}>
-              <Text style={styles.socialIcon}>🔴</Text>
-              <Text style={styles.socialText}>Google</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Sign Up Link */}
-          <View style={styles.signupContainer}>
-            <Text style={styles.signupText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Signup')} disabled={loading}>
-              <Text style={styles.signupLink}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
-
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -252,115 +279,161 @@ const LoginScreen = ({ navigation }) => {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  scrollContainer: { flexGrow: 1 },
+  root: { flex: 1, backgroundColor: '#F2F2F7' },
+  scroll: { flexGrow: 1, paddingBottom: 40 },
 
-  // Header
-  headerContainer: {
-    paddingTop: 60, paddingBottom: 40, paddingHorizontal: 20,
-    backgroundColor: '#f8f9fa',
-    borderBottomLeftRadius: 30, borderBottomRightRadius: 30,
+  // Hero
+  hero: {
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    alignItems: 'center',
+    paddingTop: 64,
+    paddingBottom: 28,
+    paddingHorizontal: 24,
+    marginBottom: 20,
   },
-  logoContainer: { alignItems: 'center', marginBottom: 20 },
-  logo: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: '#4CAF50', justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+  logoWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  logoIcon: { fontSize: 40 },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#2c3e50', textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontSize: 16, color: '#7f8c8d', textAlign: 'center' },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 4,
+  },
+  heroSub: {
+    fontSize: 14,
+    color: '#8E8E93',
+  },
 
-  // Form
-  formContainer: { padding: 24 },
+  // Body
+  body: { paddingHorizontal: 16 },
 
-  // Admin Quick Login Card
-  adminCard: {
+  // Admin pill
+  adminPill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#1C1C1E',
     borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#e94560',
-    shadowColor: '#e94560',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 20,
   },
-  adminCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  adminLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   adminBadge: {
-    backgroundColor: '#e94560',
+    backgroundColor: '#FF3B30',
     borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
-  adminBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  adminCardTitle: { color: '#fff', fontSize: 13, fontWeight: '700', marginBottom: 2 },
-  adminCardSub: { color: '#94a3b8', fontSize: 12 },
-  adminCardArrow: {
-    backgroundColor: '#e94560',
+  adminBadgeText: { fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.8 },
+  adminTitle: { fontSize: 12, fontWeight: '700', color: '#fff', marginBottom: 2 },
+  adminEmail: { fontSize: 11, color: '#636366' },
+  adminBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#2C2C2E',
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  adminCardArrowText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  adminBtnText: { fontSize: 12, color: '#8E8E93', fontWeight: '600' },
 
-  // Inputs
-  inputWrapper: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#2c3e50', marginBottom: 8 },
-  inputContainer: {
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 2, borderColor: '#e0e0e0',
-    borderRadius: 12, backgroundColor: '#f8f9fa',
-    paddingHorizontal: 16, height: 56,
+  // Input fields
+  fieldWrapper: { marginBottom: 14 },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3C3C43',
+    marginBottom: 7,
+    letterSpacing: 0.2,
   },
-  inputContainerFocused: { borderColor: '#4CAF50', backgroundColor: '#fff' },
-  inputIcon: { fontSize: 20, marginRight: 12 },
-  input: { flex: 1, fontSize: 16, color: '#2c3e50' },
-  clearBtn: { fontSize: 14, color: '#94a3b8', paddingHorizontal: 4 },
-  eyeButton: { padding: 8 },
-  eyeIcon: { fontSize: 20 },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 50,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  inputIcon: { marginRight: 8 },
+  textInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#000',
+    paddingVertical: 0,
+  },
 
   // Forgot
-  forgotPasswordContainer: { alignSelf: 'flex-end', marginBottom: 24 },
-  forgotPasswordText: { color: '#4CAF50', fontSize: 14, fontWeight: '600' },
+  forgotWrap: { alignSelf: 'flex-end', marginTop: 6, marginBottom: 20 },
+  forgotText: { fontSize: 13, color: '#4CAF50', fontWeight: '600' },
 
-  // Login button
-  loginButton: {
-    backgroundColor: '#4CAF50', borderRadius: 12,
-    paddingVertical: 16, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 20,
-    shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+  // Sign In button
+  signInBtn: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 14,
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 22,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  disabledButton: { opacity: 0.6 },
-  loginButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  signInBtnDisabled: { opacity: 0.6 },
+  signInText: { fontSize: 16, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
+  arrowChip: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
-  // Divider
-  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
-  divider: { flex: 1, height: 1, backgroundColor: '#e0e0e0' },
-  dividerText: { marginHorizontal: 16, color: '#95a5a6', fontSize: 14, fontWeight: '600' },
+  // OR divider
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  orLine: { flex: 1, height: 0.5, backgroundColor: '#D1D1D6' },
+  orText: { fontSize: 12, color: '#8E8E93', fontWeight: '500' },
 
   // Social
-  socialContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24, gap: 12 },
-  socialButton: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#e0e0e0', borderRadius: 12,
-    paddingVertical: 14, backgroundColor: '#fff',
+  socialRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  socialBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    height: 46,
   },
-  socialIcon: { fontSize: 20, marginRight: 8 },
-  socialText: { fontSize: 14, fontWeight: '600', color: '#2c3e50' },
+  socialBtnText: { fontSize: 13, fontWeight: '600', color: '#000' },
 
-  // Signup link
-  signupContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  signupText: { color: '#7f8c8d', fontSize: 15 },
-  signupLink: { color: '#4CAF50', fontSize: 15, fontWeight: 'bold' },
+  // Sign up
+  signupRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  signupMuted: { fontSize: 14, color: '#8E8E93' },
+  signupLink: { fontSize: 14, fontWeight: '700', color: '#4CAF50' },
 });
 
 export default LoginScreen;

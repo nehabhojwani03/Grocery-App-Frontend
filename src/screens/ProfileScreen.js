@@ -9,109 +9,125 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import LinearGradient from 'react-native-linear-gradient';
+import Feather from 'react-native-vector-icons/Feather';
 import { useDispatch, useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import tw from '../utils/tailwind';
 import { fetchUserProfile, clearUserData } from '../store/slices/userSlice';
 import { logoutUser } from '../store/slices/authSlice';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const getInitials = (name) => {
+  if (!name) return 'U';
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+};
+
+const getMemberSince = (createdAt) => {
+  if (!createdAt) return 'Recently';
+  return new Date(createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const StatCard = ({ value, label, accent }) => (
+  <View style={styles.statCard}>
+    <Text style={[styles.statValue, accent && styles.statValueAccent]}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </View>
+);
+
+const SectionLabel = ({ title }) => (
+  <Text style={styles.sectionLabel}>{title}</Text>
+);
+
+
+const MenuItem = ({ icon, iconLib = 'Feather', label, subtitle, onPress, rightElement }) => {
+  const IconComponent =
+    iconLib === 'MaterialCommunity' ? MaterialCommunityIcons
+    : iconLib === 'Ionicons' ? Icon
+    : Feather;
+
+  return (
+    <TouchableOpacity style={styles.menuRow} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.menuIcon}>
+        <IconComponent name={icon} size={17} color="#555" />
+      </View>
+      <View style={styles.menuText}>
+        <Text style={styles.menuLabel}>{label}</Text>
+        {subtitle ? <Text style={styles.menuSub}>{subtitle}</Text> : null}
+      </View>
+      {rightElement ?? (
+        <Feather name="chevron-right" size={17} color="#C8CDD4" />
+      )}
+    </TouchableOpacity>
+  );
+};
+
+const MenuCard = ({ children }) => (
+  <View style={styles.menuCard}>{children}</View>
+);
+
+const Divider = () => <View style={styles.divider} />;
+
+const hasAvatar = (avatar) => {
+  if (!avatar) return false;
+  if (typeof avatar !== 'string') return false;
+  if (avatar.trim() === '') return false;
+  if (avatar === 'no-photo.png') return false;  // ← backend default placeholder
+  return true;
+};
+
 const ProfileScreen = ({ navigation }) => {
   const dispatch = useDispatch();
-  
-  // Redux state
   const { data: userData, loading } = useSelector((state) => state.user);
   const { isAuthenticated } = useSelector((state) => state.auth);
-  
+
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const [displayData, setDisplayData] = useState(null);
 
-  // Load data from AsyncStorage first, then fetch fresh from API
   useEffect(() => {
     const loadData = async () => {
       try {
-        console.log('=== ProfileScreen: Loading user data ===');
-        
-        // Load from AsyncStorage first for immediate display
         const storedUser = await AsyncStorage.getItem('user');
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          console.log('ProfileScreen: Data from AsyncStorage:', user);
-          console.log('ProfileScreen: Phone from AsyncStorage:', user.phone);
-          setDisplayData(user);
-        }
-        
-        // Then fetch fresh data from API
-        if (isAuthenticated) {
-          dispatch(fetchUserProfile());
-        }
+        if (storedUser) setDisplayData(JSON.parse(storedUser));
+        if (isAuthenticated) dispatch(fetchUserProfile());
       } catch (error) {
         console.error('ProfileScreen: Error loading data:', error);
       }
     };
-
     loadData();
   }, [dispatch, isAuthenticated]);
 
-  // Update displayData when Redux userData changes
   useEffect(() => {
-    if (userData) {
-      console.log('=== ProfileScreen: Redux userData updated ===');
-      console.log('Name:', userData.name);
-      console.log('Email:', userData.email);
-      console.log('Phone:', userData.phone);
-      setDisplayData(userData);
-    }
+    if (userData) setDisplayData(userData);
   }, [userData]);
 
-  // Refresh profile when screen comes into focus
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', async () => {
-      console.log('ProfileScreen: Screen focused, refreshing data');
-      
-      // Load from AsyncStorage again
       try {
         const storedUser = await AsyncStorage.getItem('user');
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          console.log('ProfileScreen: Refreshed from AsyncStorage');
-          console.log('Phone:', user.phone);
-          setDisplayData(user);
-        }
+        if (storedUser) setDisplayData(JSON.parse(storedUser));
       } catch (error) {
         console.error('Error refreshing from AsyncStorage:', error);
       }
-      
-      // Also fetch from API
-      if (isAuthenticated) {
-        dispatch(fetchUserProfile());
-      }
+      if (isAuthenticated) dispatch(fetchUserProfile());
     });
-
     return unsubscribe;
   }, [navigation, dispatch, isAuthenticated]);
 
   const handleLogoutConfirmed = async () => {
     try {
       setLoggingOut(true);
-      
-      // Clear user data from Redux
       dispatch(clearUserData());
-      
-      // Logout from auth (this will also clear AsyncStorage)
       await dispatch(logoutUser()).unwrap();
-      
-      console.log('Logout successful');
-      
-      // Navigation will be handled automatically by your auth flow
     } catch (error) {
-      console.error('Logout error:', error);
       Alert.alert('Error', 'Failed to logout. Please try again.');
     } finally {
       setLoggingOut(false);
@@ -123,380 +139,543 @@ const ProfileScreen = ({ navigation }) => {
       'Logout',
       'Are you sure you want to logout?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: handleLogoutConfirmed,
-        },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: handleLogoutConfirmed },
       ],
       { cancelable: true }
     );
   };
 
-  // Get user initials for avatar fallback
-  const getInitials = (name) => {
-    if (!name) return 'U';
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
-  };
-
-  // Format member since date
-  const getMemberSince = (createdAt) => {
-    if (!createdAt) return 'Recently';
-    const date = new Date(createdAt);
-    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  };
-
-  // Menu sections
-  const accountSection = [
-    {
-      id: '1',
-      title: 'Edit Profile',
-      icon: 'person-outline',
-      iconType: 'Ionicons',
-      onPress: () => navigation.navigate('EditProfile'),
-    },
-    {
-      id: '2',
-      title: 'My Addresses',
-      icon: 'location-outline',
-      iconType: 'Ionicons',
-      badge: '3',
-      onPress: () => navigation.navigate('MyAddresses'),
-    },
-    {
-      id: '3',
-      title: 'Payment Methods',
-      icon: 'card-outline',
-      iconType: 'Ionicons',
-      onPress: () => navigation.navigate('PaymentMethods'),
-    },
-    {
-      id: '4',
-      title: 'Order History',
-      icon: 'time-outline',
-      iconType: 'Ionicons',
-      onPress: () => navigation.navigate('OrderHistory'),
-    },
-  ];
-
-  const preferencesSection = [
-    {
-      id: '1',
-      title: 'Notifications',
-      icon: 'notifications-outline',
-      iconType: 'Ionicons',
-      hasSwitch: true,
-      value: notificationsEnabled,
-      onToggle: setNotificationsEnabled,
-    },
-    {
-      id: '2',
-      title: 'Location Services',
-      icon: 'navigate-outline',
-      iconType: 'Ionicons',
-      hasSwitch: true,
-      value: locationEnabled,
-      onToggle: setLocationEnabled,
-    },
-    {
-      id: '3',
-      title: 'Language',
-      icon: 'language-outline',
-      iconType: 'Ionicons',
-      rightText: 'English',
-      onPress: () => navigation.navigate('Language'),
-    },
-  ];
-
-  const supportSection = [
-    {
-      id: '1',
-      title: 'Help Center',
-      icon: 'help-circle-outline',
-      iconType: 'Ionicons',
-      onPress: () => navigation.navigate('HelpCenter'),
-    },
-    {
-      id: '2',
-      title: 'About Us',
-      icon: 'information-circle-outline',
-      iconType: 'Ionicons',
-      onPress: () => navigation.navigate('About'),
-    },
-    {
-      id: '3',
-      title: 'Terms & Conditions',
-      icon: 'document-text-outline',
-      iconType: 'Ionicons',
-      onPress: () => navigation.navigate('Terms'),
-    },
-    {
-      id: '4',
-      title: 'Privacy Policy',
-      icon: 'shield-checkmark-outline',
-      iconType: 'Ionicons',
-      onPress: () => navigation.navigate('Privacy'),
-    },
-  ];
-
-  const renderMenuItem = (item) => {
-    return (
-      <TouchableOpacity
-        key={item.id}
-        style={tw`flex-row items-center justify-between bg-white px-4 py-4 border-b border-gray-100`}
-        onPress={item.onPress}
-        activeOpacity={0.7}
-      >
-        <View style={tw`flex-row items-center flex-1`}>
-          <View style={tw`w-10 h-10 bg-gray-100 rounded-full justify-center items-center`}>
-            <Icon name={item.icon} size={20} color="#1A1A1A" />
-          </View>
-          <Text style={tw`text-base font-semibold text-[#1A1A1A] ml-3`}>
-            {item.title}
-          </Text>
-          {item.badge && (
-            <View style={tw`bg-green-500 rounded-full px-2 py-0.5 ml-2`}>
-              <Text style={tw`text-xs font-bold text-white`}>{item.badge}</Text>
-            </View>
-          )}
-        </View>
-        {item.hasSwitch ? (
-          <Switch
-            value={item.value}
-            onValueChange={item.onToggle}
-            trackColor={{ false: '#D1D5DB', true: '#4CAF50' }}
-            thumbColor="#FFFFFF"
-          />
-        ) : (
-          <View style={tw`flex-row items-center`}>
-            {item.rightText && (
-              <Text style={tw`text-sm text-gray-500 mr-2`}>{item.rightText}</Text>
-            )}
-            <Icon name="chevron-forward" size={20} color="#9CA3AF" />
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
-
-  // Use displayData (from AsyncStorage or Redux)
   const currentData = displayData || userData;
 
-  // Show loading state only if no data at all
   if (loading && !currentData) {
     return (
-      <View style={tw`flex-1 bg-gray-50 justify-center items-center`}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={tw`mt-4 text-gray-600`}>Loading profile...</Text>
+        <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
     );
   }
 
+  const toggleSwitch = (setter) => (val) => setter(val);
+  
+
   return (
-    <View style={tw`flex-1 bg-gray-50`}>
-      <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
-      
-      {/* Header with Gradient */}
-      <LinearGradient
-        colors={['#4CAF50', '#45A049']}
-        style={tw`pb-6`}
-      >
-        <SafeAreaView edges={['top']}>
-          <View style={tw`flex-row items-center justify-between px-4 pt-2`}>
-            <View style={tw`flex-row items-center flex-1`}>
-              <TouchableOpacity 
-                style={tw`bg-white bg-opacity-20 rounded-full w-10 h-10 justify-center items-center mr-3`}
-                onPress={() => navigation.goBack()}
-              >
-                <Icon name="chevron-back" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              <Text style={tw`text-2xl font-extrabold text-white`}>Profile</Text>
-            </View>
-            <TouchableOpacity 
-              style={tw`bg-white bg-opacity-20 rounded-full w-10 h-10 justify-center items-center`}
-              onPress={() => navigation.navigate('Settings')}
-            >
-              <Icon name="settings-outline" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F2F0EF" />
 
-          {/* User Info Card */}
-          <View style={tw`mx-4 mt-6 bg-white rounded-2xl p-4 shadow-lg`}>
-            <View style={tw`flex-row items-center`}>
-              {currentData?.avatar ? (
-                <Image
-                  source={{ uri: currentData.avatar }}
-                  style={tw`w-20 h-20 rounded-full border-4 border-green-100`}
-                />
-              ) : (
-                <View style={tw`w-20 h-20 rounded-full border-4 border-green-100 bg-green-500 justify-center items-center`}>
-                  <Text style={tw`text-2xl font-bold text-white`}>
-                    {getInitials(currentData?.name)}
-                  </Text>
-                </View>
-              )}
-              <View style={tw`flex-1 ml-4`}>
-                <Text style={tw`text-xl font-bold text-[#1A1A1A] mb-1`}>
-                  {currentData?.name || 'User'}
-                </Text>
-                <Text style={tw`text-sm text-gray-500 mb-0.5`}>
-                  {currentData?.email || 'No email'}
-                </Text>
-                {/* GUARANTEED PHONE DISPLAY */}
-                {currentData?.phone && (
-                  <View style={tw`flex-row items-center mt-1`}>
-                    <Icon name="call-outline" size={14} color="#6B7280" />
-                    <Text style={tw`text-sm text-gray-500 ml-1`}>
-                      {currentData.phone}
-                    </Text>
-                  </View>
-                )}
-                {!currentData?.phone && (
-                  <Text style={tw`text-xs text-red-400 mt-1`}>
-                    No phone number
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {/* Stats Row */}
-            <View style={tw`flex-row justify-around mt-4 pt-4 border-t border-gray-100`}>
-              <View style={tw`items-center`}>
-                <Text style={tw`text-2xl font-bold text-green-600`}>
-                  {currentData?.orderCount || 0}
-                </Text>
-                <Text style={tw`text-xs text-gray-500 mt-1`}>Orders</Text>
-              </View>
-              <View style={tw`w-px bg-gray-200`} />
-              <View style={tw`items-center`}>
-                <Text style={tw`text-2xl font-bold text-green-600`}>
-                  ₹{currentData?.totalSavings || 0}
-                </Text>
-                <Text style={tw`text-xs text-gray-500 mt-1`}>Saved</Text>
-              </View>
-              <View style={tw`w-px bg-gray-200`} />
-              <View style={tw`items-center`}>
-                <Text style={tw`text-2xl font-bold text-green-600`}>
-                  {currentData?.membershipTier || 'Gold'}
-                </Text>
-                <Text style={tw`text-xs text-gray-500 mt-1`}>Member</Text>
-              </View>
-            </View>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
-
-      {/* Scrollable Content */}
-      <ScrollView 
-        style={tw`flex-1`}
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={tw`pb-6`}
+        contentContainerStyle={styles.scrollContent}
       >
-        {/* Account Section */}
-        <View style={tw`mt-6`}>
-          <Text style={tw`text-sm font-bold text-gray-500 uppercase tracking-wide px-4 mb-2`}>
-            Account
-          </Text>
-          <View style={tw`bg-white rounded-2xl mx-4 overflow-hidden shadow-sm`}>
-            {accountSection.map(renderMenuItem)}
-          </View>
-        </View>
-
-        {/* Preferences Section */}
-        <View style={tw`mt-6`}>
-          <Text style={tw`text-sm font-bold text-gray-500 uppercase tracking-wide px-4 mb-2`}>
-            Preferences
-          </Text>
-          <View style={tw`bg-white rounded-2xl mx-4 overflow-hidden shadow-sm`}>
-            {preferencesSection.map(renderMenuItem)}
-          </View>
-        </View>
-
-        {/* Support Section */}
-        <View style={tw`mt-6`}>
-          <Text style={tw`text-sm font-bold text-gray-500 uppercase tracking-wide px-4 mb-2`}>
-            Support
-          </Text>
-          <View style={tw`bg-white rounded-2xl mx-4 overflow-hidden shadow-sm`}>
-            {supportSection.map(renderMenuItem)}
-          </View>
-        </View>
-
-        {/* Membership Card */}
-        <View style={tw`mx-4 mt-6`}>
-          <LinearGradient
-            colors={['#FFD700', '#FFC107']}
-            style={tw`rounded-2xl p-4 shadow-lg`}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <Text style={styles.pageTitle}>Profile</Text>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => navigation.navigate('Settings')}
+            activeOpacity={0.75}
           >
-            <View style={tw`flex-row items-center justify-between`}>
-              <View style={tw`flex-1`}>
-                <Text style={tw`text-sm font-semibold text-gray-800 mb-1`}>
-                  {currentData?.membershipTier || 'Gold'} Member
-                </Text>
-                <Text style={tw`text-xl font-extrabold text-gray-900 mb-2`}>
-                  Member since {getMemberSince(currentData?.createdAt)}
-                </Text>
-                <Text style={tw`text-xs text-gray-700`}>
-                  Enjoying exclusive benefits & rewards
-                </Text>
-              </View>
-              <MaterialCommunityIcons name="crown" size={50} color="#CD7F32" />
+            <Feather name="settings" size={19} color="#111" />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Avatar Card ── */}
+        <View style={styles.avatarCard}>
+          {hasAvatar(currentData?.avatar) ? (
+            <Image source={{ uri: currentData.avatar }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarInitials}>{getInitials(currentData?.name)}</Text>
             </View>
-          </LinearGradient>
-        </View>
+          )}
 
-        {/* App Info */}
-        <View style={tw`items-center mt-6 px-4`}>
-          <Text style={tw`text-xs text-gray-400 mb-1`}>
-            Version 1.0.0
-          </Text>
-          <Text style={tw`text-xs text-gray-400`}>
-            Made with ❤️ in India
-          </Text>
-        </View>
-
-        {/* Logout Button */}
-        <TouchableOpacity
-          style={tw`mx-4 mt-6 bg-red-50 border-2 border-red-500 rounded-xl py-4 items-center shadow-sm ${loggingOut ? 'opacity-50' : ''}`}
-          onPress={handleLogout}
-          activeOpacity={0.7}
-          disabled={loggingOut}
-        >
-          <View style={tw`flex-row items-center`}>
-            {loggingOut ? (
-              <>
-                <ActivityIndicator size="small" color="#EF4444" />
-                <Text style={tw`text-base font-bold text-red-500 ml-2`}>
-                  Logging out...
-                </Text>
-              </>
-            ) : (
-              <>
-                <Icon name="log-out-outline" size={22} color="#EF4444" />
-                <Text style={tw`text-base font-bold text-red-500 ml-2`}>
-                  Logout
-                </Text>
-              </>
+          <View style={styles.avatarInfo}>
+            <Text style={styles.userName}>{currentData?.name || 'User'}</Text>
+            <View style={styles.metaRow}>
+              <Feather name="mail" size={11} color="#A0AAB4" />
+              <Text style={styles.metaText}>{currentData?.email || 'No email'}</Text>
+            </View>
+            {currentData?.phone && (
+              <View style={styles.metaRow}>
+                <Feather name="phone" size={11} color="#A0AAB4" />
+                <Text style={styles.metaText}>{currentData.phone}</Text>
+              </View>
             )}
           </View>
+
+          <TouchableOpacity
+            style={styles.editPill}
+            onPress={() => navigation.navigate('EditProfile')}
+            activeOpacity={0.75}
+          >
+            <Feather name="edit-2" size={12} color="#111" />
+            <Text style={styles.editPillText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Stats ── */}
+        <View style={styles.statsRow}>
+          <StatCard value={currentData?.orderCount ?? 0} label="Orders" accent />
+          <StatCard value={`₹${currentData?.totalSavings ?? 0}`} label="Saved" accent />
+          <StatCard value={currentData?.membershipTier || 'Gold'} label="Member" />
+        </View>
+
+        {/* ── Account ── */}
+        <View style={styles.section}>
+          <SectionLabel title="Account" />
+          <MenuCard>
+            <MenuItem
+              icon="user"
+              label="Edit Profile"
+              subtitle="Name, email & phone"
+              onPress={() => navigation.navigate('EditProfile')}
+            />
+            <Divider />
+            <MenuItem
+              icon="map-pin"
+              label="My Addresses"
+              subtitle="Saved locations"
+              onPress={() => navigation.navigate('MyAddresses')}
+              rightElement={
+                <View style={styles.rowRight}>
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>3</Text>
+                  </View>
+                  <Feather name="chevron-right" size={17} color="#C8CDD4" />
+                </View>
+              }
+            />
+            <Divider />
+            <MenuItem
+              icon="credit-card"
+              label="Payment Methods"
+              subtitle="Cards & UPI"
+              onPress={() => navigation.navigate('PaymentMethods')}
+            />
+            <Divider />
+            <MenuItem
+              icon="clock"
+              label="Order History"
+              subtitle="Past orders & tracking"
+              onPress={() => navigation.navigate('OrderHistory')}
+            />
+          </MenuCard>
+        </View>
+
+        {/* ── Preferences ── */}
+        <View style={styles.section}>
+          <SectionLabel title="Preferences" />
+          <MenuCard>
+            <MenuItem
+              icon="bell"
+              label="Notifications"
+              subtitle="Order updates & offers"
+              rightElement={
+                <Switch
+                  value={notificationsEnabled}
+                  onValueChange={toggleSwitch(setNotificationsEnabled)}
+                  trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
+                  thumbColor="#fff"
+                  ios_backgroundColor="#E0E0E0"
+                />
+              }
+            />
+            <Divider />
+            <MenuItem
+              icon="navigation"
+              label="Location Services"
+              subtitle="For faster delivery"
+              rightElement={
+                <Switch
+                  value={locationEnabled}
+                  onValueChange={toggleSwitch(setLocationEnabled)}
+                  trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
+                  thumbColor="#fff"
+                  ios_backgroundColor="#E0E0E0"
+                />
+              }
+            />
+            <Divider />
+            <MenuItem
+              icon="globe"
+              label="Language"
+              subtitle="English"
+              onPress={() => navigation.navigate('Language')}
+            />
+          </MenuCard>
+        </View>
+
+        {/* ── Support ── */}
+        <View style={styles.section}>
+          <SectionLabel title="Support" />
+          <MenuCard>
+            <MenuItem
+              icon="help-circle"
+              label="Help Center"
+              onPress={() => navigation.navigate('HelpCenter')}
+            />
+            <Divider />
+            <MenuItem
+              icon="info"
+              label="About Us"
+              onPress={() => navigation.navigate('About')}
+            />
+            <Divider />
+            <MenuItem
+              icon="file-text"
+              label="Terms & Conditions"
+              onPress={() => navigation.navigate('Terms')}
+            />
+            <Divider />
+            <MenuItem
+              icon="shield"
+              label="Privacy Policy"
+              onPress={() => navigation.navigate('Privacy')}
+            />
+          </MenuCard>
+        </View>
+
+        {/* ── Membership Card ── */}
+        <View style={styles.memberCard}>
+          <View style={styles.crownWrap}>
+            <MaterialCommunityIcons name="crown-outline" size={22} color="#C9A84C" />
+          </View>
+          <View style={styles.memberInfo}>
+            <Text style={styles.memberTier}>
+              {currentData?.membershipTier || 'Gold'} Member
+            </Text>
+            <Text style={styles.memberTitle}>
+              Since {getMemberSince(currentData?.createdAt)}
+            </Text>
+            <Text style={styles.memberSub}>Exclusive benefits & rewards</Text>
+          </View>
+        </View>
+
+        {/* ── Version ── */}
+        <Text style={styles.version}>Version 1.0.0 · Made with ♥ in India</Text>
+
+        {/* ── Logout ── */}
+        <TouchableOpacity
+          style={[styles.logoutBtn, loggingOut && { opacity: 0.5 }]}
+          onPress={handleLogout}
+          activeOpacity={0.75}
+          disabled={loggingOut}
+        >
+          {loggingOut ? (
+            <>
+              <ActivityIndicator size="small" color="#E53935" />
+              <Text style={styles.logoutText}>Logging out...</Text>
+            </>
+          ) : (
+            <>
+              <Feather name="log-out" size={17} color="#E53935" />
+              <Text style={styles.logoutText}>Logout</Text>
+            </>
+          )}
         </TouchableOpacity>
 
-        {/* Bottom Spacing */}
-        <View style={tw`h-6`} />
+        <View style={{ height: 32 }} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F2F0EF',
+  },
+  scrollContent: {
+    paddingBottom: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#F2F0EF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#A0AAB4',
+    fontWeight: '500',
+  },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 16,
+  },
+  pageTitle: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#111',
+    letterSpacing: -0.8,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#fff',
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Avatar Card
+  avatarCard: {
+    marginHorizontal: 20,
+    backgroundColor: '#fff',
+    borderRadius: 22,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  avatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+  },
+  avatarPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: '#1A1A1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  avatarInitials: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.5,
+  },
+  avatarInfo: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  userName: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111',
+    letterSpacing: -0.3,
+    marginBottom: 2,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontSize: 12,
+    color: '#A0AAB4',
+    fontWeight: '500',
+  },
+  editPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F2F0EF',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    flexShrink: 0,
+  },
+  editPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#111',
+  },
+
+  // Stats
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 20,
+    marginTop: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#111',
+    letterSpacing: -0.8,
+    lineHeight: 26,
+  },
+  statValueAccent: {
+    color: '#4CAF50',
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#A0AAB4',
+    fontWeight: '600',
+    marginTop: 5,
+    letterSpacing: 0.3,
+  },
+
+  // Sections
+  section: {
+    marginTop: 22,
+    paddingHorizontal: 20,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#B0B8C1',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+    paddingLeft: 2,
+  },
+
+  // Menu
+  menuCard: {
+    backgroundColor: '#fff',
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 13,
+  },
+  menuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  menuText: {
+    flex: 1,
+  },
+  menuLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111',
+    letterSpacing: -0.1,
+  },
+  menuSub: {
+    fontSize: 11,
+    color: '#A0AAB4',
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  divider: {
+    height: 0.5,
+    backgroundColor: '#F4F4F4',
+    marginLeft: 65,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  countBadge: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  countBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fff',
+  },
+
+  // Membership
+  memberCard: {
+    marginHorizontal: 20,
+    marginTop: 22,
+    backgroundColor: '#111',
+    borderRadius: 22,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  crownWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#222',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  memberInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  memberTier: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#C9A84C',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  memberTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.2,
+  },
+  memberSub: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '500',
+  },
+
+  // Version
+  version: {
+    textAlign: 'center',
+    fontSize: 11,
+    color: '#C5CAD0',
+    fontWeight: '500',
+    marginTop: 20,
+    marginBottom: 4,
+  },
+
+  // Logout
+  logoutBtn: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#FFE8E8',
+    borderRadius: 16,
+    paddingVertical: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+  logoutText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#E53935',
+    letterSpacing: -0.1,
+  },
+});
 
 export default ProfileScreen;
