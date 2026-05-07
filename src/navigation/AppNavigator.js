@@ -36,7 +36,7 @@ const TabContainer = ({ navigation }) => {
     <View style={styles.container}>
       {/* ✅ This wrapper ensures screen fills all space above tab bar */}
       <View style={styles.screenWrapper}>
-        <ActiveScreen navigation={navigation} />
+       <ActiveScreen navigation={navigation} onTabSwitch={setActiveTab} />
       </View>
 
       <BottomTabNavigator

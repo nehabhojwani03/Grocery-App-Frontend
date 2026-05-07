@@ -15,34 +15,44 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { BASE_URL } from '../../config/apiconfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
 const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [savedAddresses] = useState([
-    {
-      id: '1',
-      label: 'Home',
-      distance: '7.61 km away',
-      address: 'Neha, Near maheshwari public school, Vaishali Nagar, Ajmer',
-      phone: '8619820389',
-    },
-    {
-      id: '2',
-      label: 'Home',
-      distance: '10.21 km away',
-      address: 'Neha, Reid and taylor ajmrtsgiv, Reid & Taylor near Gujarati school, Hathi Bhata, Ajmer, Rajasthan, India',
-      phone: '8112270790',
-    },
-    {
-      id: '3',
-      label: 'Home',
-      distance: '6.40 km away',
-      address: 'Ajmer, Rajasthan',
-      phone: '9876543210',
-    },
-  ]);
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+
+  useEffect(() => {
+    if (visible) fetchSavedAddresses();
+  }, [visible]);
+
+  const getAuthHeaders = async () => {
+    const token = await AsyncStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+  };
+
+
+  const fetchSavedAddresses = async () => {
+    try {
+      setLoadingAddresses(true);
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/addresses`, {
+        headers,
+      });
+      const data = await response.json();
+      if (data.success) setSavedAddresses(data.data);
+    } catch (err) {
+      console.error('Failed to fetch addresses:', err);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
 
   const requestLocationPermission = async () => {
     if (Platform.OS === 'android') {
@@ -69,7 +79,7 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
   const handleUseCurrentLocation = async () => {
     try {
       const hasPermission = await requestLocationPermission();
-      
+
       if (hasPermission) {
         // Just pass the type, let MapSelectionScreen handle getting location
         onAddressSelect({
@@ -91,7 +101,7 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
 
   const handleAddNewAddress = () => {
     try {
-      onAddressSelect({ type: 'new' });
+      onAddressSelect({ type: 'new', fullName: '', phone: '', });
       onClose();
     } catch (error) {
       console.error('Navigation error:', error);
@@ -126,20 +136,20 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
       animationType="slide"
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.modalOverlay}
       >
         {/* Touchable overlay to close modal */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.overlayTouchable}
           activeOpacity={1}
           onPress={onClose}
         />
-        
+
         {/* Close button */}
-        <TouchableOpacity 
-          style={styles.closeButton} 
+        <TouchableOpacity
+          style={styles.closeButton}
           onPress={onClose}
           activeOpacity={0.7}
         >
@@ -165,12 +175,12 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
             />
           </View>
 
-          <ScrollView 
+          <ScrollView
             style={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
             {/* Use Current Location */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.optionItem}
               onPress={handleUseCurrentLocation}
               activeOpacity={0.7}
@@ -185,7 +195,7 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
             </TouchableOpacity>
 
             {/* Add New Address */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.optionItem}
               onPress={handleAddNewAddress}
               activeOpacity={0.7}
@@ -200,7 +210,7 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
             </TouchableOpacity>
 
             {/* Import from Zomato */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.optionItem}
               onPress={handleImportFromZomato}
               activeOpacity={0.7}
@@ -215,7 +225,7 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
             </TouchableOpacity>
 
             {/* Request Address from WhatsApp */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.optionItem}
               onPress={handleRequestAddress}
               activeOpacity={0.7}
@@ -234,7 +244,7 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
 
             {savedAddresses.map((address) => (
               <TouchableOpacity
-                key={address.id}
+                key={address._id}
                 style={styles.addressCard}
                 onPress={() => handleSelectAddress(address)}
                 activeOpacity={0.7}
@@ -245,18 +255,22 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
                   </View>
                   <View style={styles.addressInfo}>
                     <View style={styles.addressHeader}>
-                      <Text style={styles.addressLabel}>{address.label}</Text>
-                      <Text style={styles.addressDistance}>{address.distance}</Text>
+                      <Text style={styles.addressLabel}>
+                        {address.addressType?.charAt(0).toUpperCase() + address.addressType?.slice(1)}
+                      </Text>
+                      <Text style={styles.addressText}>{address.fullName}</Text>
                     </View>
                     <Text style={styles.addressText} numberOfLines={2}>
-                      {address.address}
+                      {[address.addressLine1, address.addressLine2, address.landmark, address.city, address.state, address.pincode]
+                        .filter(Boolean)
+                        .join(', ')}
                     </Text>
                     <Text style={styles.phoneText}>Phone number: {address.phone}</Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.addressActions}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.actionButton}
                     onPress={(e) => {
                       e.stopPropagation();
@@ -265,7 +279,7 @@ const AddressSelectionModal = ({ visible, onClose, onAddressSelect }) => {
                   >
                     <Icon name="ellipsis-horizontal" size={20} color="#666" />
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.actionButton}
                     onPress={(e) => {
                       e.stopPropagation();

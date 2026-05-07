@@ -6,14 +6,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCart } from '../context/CartContext';
 
-// Map MongoDB _id → local image require()
-
-const CartScreen = ({ navigation }) => {
-  const { cartItems, cartCount, cartTotal, addItem, removeItem, clearCart, loading } = useCart();
-
-  const deliveryFee = cartTotal > 0 ? (cartTotal >= 299 ? 0 : 25) : 0;
-  const grandTotal = cartTotal + deliveryFee;
-
   const IMAGE_MAP = {
     v1: require('../assets/categories/vegetablefruits/tomato.jpg'),
     v2: require('../assets/categories/vegetablefruits/brinjles.jpg'),
@@ -142,6 +134,13 @@ const CartScreen = ({ navigation }) => {
     bc7: require('../assets/categories/babycare/pampersdiaper.jpg'),
     bc8: require('../assets/categories/babycare/pamperswipes.jpg'),
   };
+
+const CartScreen = ({ navigation }) => {
+  const { cartItems, cartCount, cartTotal, addItem, removeItem, clearCart, loading } = useCart();
+
+  const deliveryFee = cartTotal > 0 ? (cartTotal >= 299 ? 0 : 25) : 0;
+  const grandTotal = cartTotal + deliveryFee;
+
 
   const renderItem = ({ item }) => {
     const product = item.product;

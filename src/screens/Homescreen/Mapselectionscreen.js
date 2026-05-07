@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BASE_URL } from '../../config/apiconfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Conditional imports for optional dependencies
 let MapView = null;
@@ -50,6 +52,16 @@ const { height } = Dimensions.get('window');
 
 const MapSelectionScreen = ({ navigation, route }) => {
   const mapRef = useRef(null);
+  const [selectedType, setSelectedType] = useState('home');
+  const [userDetails, setUserDetails] = useState({
+    fullName: '',
+    phone: '',
+  });
+  const [parsedLocation, setParsedLocation] = useState({
+    city: '',
+    state: '',
+    pincode: '',
+  });
   const [region, setRegion] = useState({
     latitude: 26.4499,
     longitude: 74.6399,
@@ -265,28 +277,40 @@ const MapSelectionScreen = ({ navigation, route }) => {
 
   const reverseGeocode = async (latitude, longitude) => {
     try {
-      // You need to add your Google Maps API key here
-      const API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY';
-
-      if (API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY') {
-        // Fallback address if API key not set
-        setAddress(`Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-        return;
-      }
-
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${API_KEY}`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+        {
+          headers: {
+            'Accept-Language': 'en',
+            'User-Agent': 'GroceryApp/1.0',  // Nominatim requires a User-Agent
+          },
+        }
       );
       const data = await response.json();
 
-      if (data.results && data.results.length > 0) {
-        setAddress(data.results[0].formatted_address);
-      } else {
-        setAddress(`Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+      if (data && data.address) {
+        const a = data.address;
+
+        const displayAddress = [
+          a.road || a.neighbourhood || a.suburb,
+          a.city || a.town || a.village || a.county,
+          a.state,
+        ]
+          .filter(Boolean)
+          .join(', ');
+
+        setAddress(displayAddress || data.display_name);
+
+        // Store parsed parts for payload
+        setParsedLocation({
+          city: a.city || a.town || a.village || a.county || '',
+          state: a.state || '',
+          pincode: a.postcode || '',
+        });
       }
     } catch (error) {
       console.error('Reverse geocode error:', error);
-      setAddress(`Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+      setAddress(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
     }
   };
 
@@ -304,27 +328,80 @@ const MapSelectionScreen = ({ navigation, route }) => {
     setRegion(newRegion);
   };
 
-  const handleConfirmLocation = () => {
-    if (!address) {
-      Alert.alert('Please select a location', 'Tap on the map to select your location');
+  const getAuthHeaders = async () => {
+    const token = await AsyncStorage.getItem('token'); // same key you use when saving token on login
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+  };
+
+
+  const handleConfirmLocation = async () => {
+    // Validate required user-filled fields
+    if (!userDetails.fullName.trim()) {
+      Alert.alert('Required', 'Please enter your full name');
+      return;
+    }
+    if (!userDetails.phone.trim() || userDetails.phone.length !== 10) {
+      Alert.alert('Required', 'Please enter a valid 10-digit phone number');
       return;
     }
 
-    const locationData = {
-      latitude: markerPosition.latitude,
-      longitude: markerPosition.longitude,
-      address: address,
-      details: addressDetails,
-    };
-
-    console.log('Location confirmed:', locationData);
-
-    // Navigate back with the selected location
-    if (route?.params?.onLocationSelect) {
-      route.params.onLocationSelect(locationData);
+    if (!addressDetails.houseNumber.trim()) {
+      Alert.alert('Required', 'Please enter your house/flat number');
+      return;
+    }
+    if (!address) {
+      Alert.alert('Required', 'Please select a location on the map');
+      return;
     }
 
-    navigation.goBack();
+    const payload = {
+      fullName: userDetails.fullName.trim(),
+      phone: userDetails.phone.trim(),
+      addressLine1: addressDetails.houseNumber.trim(),
+      addressLine2: addressDetails.floor.trim() || '',
+      landmark: addressDetails.landmark.trim() || '',
+      city: parsedLocation.city,
+      state: parsedLocation.state,
+      pincode: parsedLocation.pincode,
+      country: 'India',
+      addressType: selectedType,       // 'home' | 'work' | 'other'
+      coordinates: {
+        latitude: markerPosition.latitude,
+        longitude: markerPosition.longitude,
+      },
+    };
+
+    // Validate that reverse geocode gave us the required fields
+    if (!payload.city || !payload.state || !payload.pincode) {
+      Alert.alert(
+        'Location Incomplete',
+        'Could not detect city/pincode from map. Please try moving the pin slightly or check your internet connection.'
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/addresses`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+  
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message);
+
+      if (route?.params?.onLocationSelect) route.params.onLocationSelect(data.data);
+      navigation.goBack();
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to save address');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const moveToCurrentLocation = () => {
@@ -440,6 +517,24 @@ const MapSelectionScreen = ({ navigation, route }) => {
         <View style={styles.formSection}>
           <TextInput
             style={styles.input}
+            placeholder="Full Name"
+            placeholderTextColor="#999"
+            value={userDetails.fullName}
+            onChangeText={(text) => setUserDetails({ ...userDetails, fullName: text })}
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Phone Number"
+            placeholderTextColor="#999"
+            keyboardType="phone-pad"
+            maxLength={10}
+            value={userDetails.phone}
+            onChangeText={(text) => setUserDetails({ ...userDetails, phone: text })}
+          />
+
+          <TextInput
+            style={styles.input}
             placeholder="House/Flat/Block No."
             placeholderTextColor="#999"
             value={addressDetails.houseNumber}
@@ -471,7 +566,7 @@ const MapSelectionScreen = ({ navigation, route }) => {
 
         {/* Save Address Types */}
         <View style={styles.addressTypes}>
-          <TouchableOpacity style={styles.addressTypeButton}>
+          <TouchableOpacity style={styles.addressTypeButton} onPress={() => setSelectedType('home')} >
             <Icon name="home" size={20} color="#666" />
             <Text style={styles.addressTypeText}>Home</Text>
           </TouchableOpacity>
@@ -623,7 +718,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
-    maxHeight: height * 0.45,
+    maxHeight: height * 0.75,
   },
   dragHandle: {
     width: 40,

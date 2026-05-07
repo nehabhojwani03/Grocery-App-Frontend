@@ -226,24 +226,65 @@ const CheckoutScreen = ({ navigation }) => {
     const deliveryFee = cartTotal >= 299 ? 0 : 25;
     const grandTotal = cartTotal + deliveryFee;
 
-    const handleAddressSelect = (addressData) => {
-        if (addressData.type === 'current') {
-            navigation.navigate('MapSelection', { type: 'current' });
-        } else if (addressData.type === 'new') {
-            navigation.navigate('MapSelection', {
-                type: 'new',
-                onLocationSelect: (locationData) => {
-                    setSelectedAddress({
-                        label: 'Selected Location',
-                        address: locationData.address,
-                    });
-                },
-            });
-        } else if (addressData.type === 'saved') {
-            setSelectedAddress(addressData.address);
-        }
-    };
-
+  const handleAddressSelect = (addressData) => {
+    if (addressData.type === 'current') {
+        navigation.navigate('MapSelection', {
+            type: 'current',
+            onLocationSelect: (locationData) => {
+                setSelectedAddress({
+                    label: locationData.addressType
+                        ? locationData.addressType.charAt(0).toUpperCase() + locationData.addressType.slice(1)
+                        : 'Current Location',
+                    address: [
+                        locationData.addressLine1,
+                        locationData.addressLine2,
+                        locationData.landmark,
+                        locationData.city,
+                        locationData.state,
+                        locationData.pincode,
+                    ].filter(Boolean).join(', '),
+                    fullAddress: locationData,
+                });
+            },
+        });
+    } else if (addressData.type === 'new') {
+        navigation.navigate('MapSelection', {
+            type: 'new',
+            onLocationSelect: (locationData) => {
+                setSelectedAddress({
+                    label: locationData.addressType
+                        ? locationData.addressType.charAt(0).toUpperCase() + locationData.addressType.slice(1)
+                        : 'New Address',
+                    address: [
+                        locationData.addressLine1,
+                        locationData.addressLine2,
+                        locationData.landmark,
+                        locationData.city,
+                        locationData.state,
+                        locationData.pincode,
+                    ].filter(Boolean).join(', '),
+                    fullAddress: locationData,
+                });
+            },
+        });
+    } else if (addressData.type === 'saved') {
+        const a = addressData.address;
+        setSelectedAddress({
+            label: a.addressType
+                ? a.addressType.charAt(0).toUpperCase() + a.addressType.slice(1)
+                : 'Saved Address',
+            address: [
+                a.addressLine1,
+                a.addressLine2,
+                a.landmark,
+                a.city,
+                a.state,
+                a.pincode,
+            ].filter(Boolean).join(', '),
+            fullAddress: a,
+        });
+    }
+};
     const renderItem = ({ item }) => {
         // item from backend: { _id, product: { _id, name, price... }, quantity, price }
         const product = item.product;

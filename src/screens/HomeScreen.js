@@ -147,8 +147,8 @@ const ProductCard = ({ item, cardWidth }) => {
   );
 };
 
-const FreqCard = ({ item, cardWidth }) => (
-  <TouchableOpacity style={[s.freqCard, { width: cardWidth }]} activeOpacity={0.85}>
+const FreqCard = ({ item, cardWidth, onPress }) => (
+  <TouchableOpacity style={[s.freqCard, { width: cardWidth }]} activeOpacity={0.85} onPress={onPress}>
     <View style={s.freqImgs}>
       {item.items.map((p) => (
         <View key={p.id} style={s.freqImgBox}>
@@ -243,7 +243,7 @@ const WINTER_PRODUCTS = [
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const HomeScreen = () => {
+const HomeScreen = ({ onTabSwitch }) => {
   const { width } = useWindowDimensions();
   const navigation = useNavigation();
   const { cartCount } = useCart();
@@ -587,7 +587,7 @@ const HomeScreen = () => {
             <SectionHeader
               title="Frequently bought"
               subtitle="Based on your past orders"
-              onSeeAll={() => {}}
+              onSeeAll={() => onTabSwitch?.('Categories')}
             />
             <View style={s.freqGrid}>
               {FREQUENTLY_BOUGHT.map((item, index) => {
@@ -595,9 +595,9 @@ const HomeScreen = () => {
                 const next = FREQUENTLY_BOUGHT[index + 1];
                 return (
                   <View key={item.id} style={s.freqRow}>
-                    <FreqCard item={item} cardWidth={freqCardW} />
+                    <FreqCard item={item} cardWidth={freqCardW} onPress={() => onTabSwitch?.('Categories')}/>
                     {next
-                      ? <FreqCard item={next} cardWidth={freqCardW} />
+                      ? <FreqCard item={next} cardWidth={freqCardW} onPress={() => onTabSwitch?.('Categories')}/>
                       : <View style={{ width: freqCardW }} />}
                   </View>
                 );
